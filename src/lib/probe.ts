@@ -6,11 +6,11 @@ import { readFile } from "node:fs/promises";
 import type { Ecosystem, StackProbe } from "./types.ts";
 
 /**
- * Sonda deterministica. Nada aqui chama LLM.
+ * Deterministic probe. Nothing here calls an LLM.
  *
- * Principio do projeto: so pague token pelo que ferramenta deterministica nao
- * consegue responder. package.json, lockfile e arvore de diretorios sao
- * gratis e sempre confiaveis; a leitura semantica do codigo vem depois.
+ * The project's principle: only pay tokens for what a deterministic tool cannot
+ * answer. package.json, the lockfile and the directory tree are free and always
+ * reliable; reading the code for meaning comes afterwards.
  */
 
 const DEP_BUCKETS = {
@@ -94,7 +94,7 @@ async function detectEcosystem(dir: string): Promise<Ecosystem> {
   return "unknown";
 }
 
-/** Comandos por ecossistema quando nao ha package.json para consultar. */
+/** Commands per ecosystem when there is no package.json to consult. */
 function nonNodeCommands(eco: Ecosystem): StackProbe["commands"] {
   const table: Record<string, StackProbe["commands"]> = {
     python: {

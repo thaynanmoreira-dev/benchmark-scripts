@@ -3,31 +3,31 @@ import type { ListPrsOptions, ProviderName, PullRequestRef } from "../types.ts";
 
 export interface ProviderContext {
   repoName: string;
-  /** Mirror bare do repo. Providers locais leem daqui. */
+  /** The repo's bare mirror. Local providers read from here. */
   git: GitRepo;
-  /** Azure DevOps: organizacao. GitHub: owner. */
+  /** Azure DevOps: the organisation. GitHub: the owner. */
   org?: string;
-  /** Azure DevOps: projeto. */
+  /** Azure DevOps: the project. */
   project?: string;
-  /** URL de clone declarada na config, quando houver. */
+  /** Clone URL declared in the config, when there is one. */
   remoteUrl?: string;
 }
 
 export interface PrProvider {
   name: ProviderName;
-  /** Deriva a URL de clone quando a config nao trouxe uma. */
+  /** Derives the clone URL when the config did not provide one. */
   remoteUrl(ctx: ProviderContext): string | null;
-  /** Requisitos de ambiente ausentes. Vazio = pronto para rodar. */
+  /** Missing environment requirements. Empty means ready to run. */
   missingRequirements(ctx: ProviderContext): string[];
   listMergedPrs(ctx: ProviderContext, opts: ListPrsOptions): Promise<PullRequestRef[]>;
 }
 
-/** Aceita `main` ou `refs/heads/main` e devolve o nome curto. */
+/** Accepts `main` or `refs/heads/main` and returns the short name. */
 export function shortBranch(ref: string): string {
   return ref.replace(/^refs\/heads\//, "");
 }
 
-/** Aceita `main` ou `refs/heads/main` e devolve a ref completa. */
+/** Accepts `main` or `refs/heads/main` and returns the full ref. */
 export function fullRef(ref: string): string {
   return ref.startsWith("refs/") ? ref : `refs/heads/${ref}`;
 }

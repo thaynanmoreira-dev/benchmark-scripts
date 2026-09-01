@@ -1,6 +1,6 @@
-/** Estatistica basica. Deterministico e sem dependencia. */
+/** Basic statistics. Deterministic and dependency-free. */
 
-/** Percentil por interpolacao linear. `sorted` precisa estar ordenado asc. */
+/** Percentile by linear interpolation. `sorted` must be in ascending order. */
 export function percentile(sorted: number[], p: number): number {
   if (sorted.length === 0) return 0;
   if (sorted.length === 1) return sorted[0];
@@ -17,7 +17,7 @@ export function mean(values: number[]): number {
   return values.reduce((a, b) => a + b, 0) / values.length;
 }
 
-/** Desvio padrao amostral (n-1). Retorna 0 para n menor que 2. */
+/** Sample standard deviation (n-1). Returns 0 for n below 2. */
 export function stdev(values: number[]): number {
   if (values.length < 2) return 0;
   const m = mean(values);
@@ -26,8 +26,8 @@ export function stdev(values: number[]): number {
 }
 
 /**
- * Intervalo de Wilson para proporcao. Com n pequeno (3 reps por celula) o
- * intervalo normal mente; o de Wilson nao colapsa em zero quando k = 0.
+ * Wilson interval for a proportion. With small n (3 reps per cell) the normal
+ * interval lies; the Wilson one does not collapse to zero when k = 0.
  */
 export function wilson(successes: number, total: number, z = 1.96): [number, number] {
   if (total === 0) return [0, 0];
@@ -39,38 +39,38 @@ export function wilson(successes: number, total: number, z = 1.96): [number, num
 }
 
 /**
- * Teste de McNemar pareado, com correcao de continuidade.
+ * Paired McNemar test, with the continuity correction.
  *
- * Comparar duas taxas de sucesso soltas ignora que os dois arms rodaram AS
- * MESMAS tarefas. O que interessa nao e quantos cada um acertou, e sim em
- * quantas tarefas eles discordaram e para que lado: `b` = so o baseline
- * passou, `c` = so o tratamento passou. Tarefa que os dois acertam, ou que os
- * dois erram, nao carrega informacao sobre a diferenca entre eles.
+ * Comparing two loose success rates ignores that both arms ran THE SAME tasks.
+ * What matters is not how many each one got right, but on how many tasks they
+ * disagreed and in which direction: `b` = only the baseline passed, `c` = only
+ * the treatment passed. A task both arms get right, or both get wrong, carries
+ * no information about the difference between them.
  *
- * Devolve o p-valor bilateral aproximado pela qui-quadrado com 1 grau de
- * liberdade. Com b + c pequeno a aproximacao e grosseira, e o chamador avisa.
+ * Returns the two-sided p-value approximated by chi-squared with 1 degree of
+ * freedom. With a small b + c the approximation is coarse, and the caller warns.
  */
-export function mcnemar(b: number, c: number): { estatistica: number; p: number; n: number } {
+export function mcnemar(b: number, c: number): { statistic: number; p: number; n: number } {
   const n = b + c;
-  if (n === 0) return { estatistica: 0, p: 1, n: 0 };
-  const estatistica = (Math.abs(b - c) - 1) ** 2 / n;
-  return { estatistica, p: qui2SobrevivenciaGl1(estatistica), n };
+  if (n === 0) return { statistic: 0, p: 1, n: 0 };
+  const statistic = (Math.abs(b - c) - 1) ** 2 / n;
+  return { statistic, p: chi2SurvivalDf1(statistic), n };
 }
 
 /**
- * Cauda superior da qui-quadrado com 1 grau de liberdade.
- * Para gl = 1 vale P(X > x) = erfc(sqrt(x / 2)), entao basta uma erfc.
+ * Upper tail of chi-squared with 1 degree of freedom.
+ * For df = 1, P(X > x) = erfc(sqrt(x / 2)), so a single erfc suffices.
  */
-function qui2SobrevivenciaGl1(x: number): number {
+function chi2SurvivalDf1(x: number): number {
   if (x <= 0) return 1;
   return erfc(Math.sqrt(x / 2));
 }
 
-/** erfc por aproximacao de Numerical Recipes: erro relativo abaixo de 1.2e-7. */
+/** erfc by the Numerical Recipes approximation: relative error below 1.2e-7. */
 function erfc(x: number): number {
   const z = Math.abs(x);
   const t = 1 / (1 + z / 2);
-  const soma =
+  const sum =
     -z * z -
     1.26551223 +
     t *
@@ -86,11 +86,11 @@ function erfc(x: number): number {
                         t *
                           (-1.13520398 +
                             t * (1.48851587 + t * (-0.82215223 + t * 0.17087277))))))));
-  const r = t * Math.exp(soma);
+  const r = t * Math.exp(sum);
   return x >= 0 ? r : 2 - r;
 }
 
-/** PRNG deterministico. Mesma seed, mesma ordem de runs. */
+/** Deterministic PRNG. Same seed, same run order. */
 export function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
@@ -111,7 +111,7 @@ export function shuffle<T>(arr: T[], rand: () => number): T[] {
 }
 
 export function fmt(n: number): string {
-  return n.toLocaleString("pt-BR");
+  return n.toLocaleString("en-US");
 }
 
 export function fmtMs(ms: number): string {

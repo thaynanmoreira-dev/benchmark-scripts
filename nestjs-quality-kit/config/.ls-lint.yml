@@ -1,0 +1,18 @@
+# Predictable structure and names. Agents navigate by grep and by path: when the
+# convention changes from folder to folder, they burn a `find` call before every
+# read, and guess the path wrong when they guess.
+#
+# The regex accepts the Nest convention — lowercase segments separated by dots,
+# like `order.service` or `calculate-total.handler` — and rejects anything else:
+# PascalCase, camelCase, underscores, spaces.
+ls:
+  src:
+    .dir: kebab-case
+    .ts: regex:^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$
+
+ignore:
+  - node_modules
+  - coverage
+  - reports
+  - dist
+  - .stryker-tmp

@@ -4,9 +4,9 @@ import { appendLine, existsSync, readJsonl, writeJson, writeText } from "./fsx.t
 import type { BenchConfig, RunRecord } from "./types.ts";
 
 /**
- * Observabilidade. Um arquivo append-only e a fonte da verdade dos resultados.
- * Nunca reescreva uma linha existente: um run interrompido no meio deixa uma
- * linha truncada, que o leitor descarta, e a proxima execucao refaz o run.
+ * Observability. One append-only file is the source of truth for results.
+ * Never rewrite an existing line: a run interrupted midway leaves a truncated
+ * line, which the reader discards, and the next execution redoes that run.
  */
 
 export function obsDir(root: string): string {
@@ -19,42 +19,42 @@ export function runsPath(root: string): string {
 
 export const OBS_SCHEMA = {
   file: "runs.jsonl",
-  note: "Append-only. Uma linha por run. Nunca reescrever linha existente.",
+  note: "Append-only. One line per run. Never rewrite an existing line.",
   fields: {
-    runId: "string — <arm>.<taskId>.<rep>, com # trocado por -",
+    runId: "string — <arm>.<taskId>.<rep>, with # replaced by -",
     arm: "string",
     taskId: "string — <repo>#<prId>",
     repo: "string",
     rep: "number",
     mode: "vibe | spec",
-    model: "string | null — travado para todo o benchmark",
+    model: "string | null — pinned for the whole benchmark",
     startedAt: "ISO",
     endedAt: "ISO",
-    wallClockMs: "number — setup + agente + avaliacao",
-    agentMs: "number — so o tempo dentro do CLI do agente",
+    wallClockMs: "number — setup + agent + grading",
+    agentMs: "number — time inside the agent CLI only",
     exitCode: "number | null",
-    agentTurns: "number — 1 = tentativa inicial; >1 = reparo por gate vermelho",
+    agentTurns: "number — 1 = first attempt; >1 = repair after a red gate",
     timedOut: "boolean",
-    usageFromStream: "objeto — tokens somados, custo/credito pelo maximo observado",
-    creditsBefore: "number | null — snapshot manual do dashboard",
+    usageFromStream: "object — tokens summed, cost/credits from the max observed",
+    creditsBefore: "number | null — manual snapshot from the dashboard",
     creditsAfter: "number | null",
     creditsDelta: "number | null",
-    filesTouched: "string[] — o que o agente escreveu, antes de plantar o grader",
-    filesOutsideGoldenDiff: "string[] — metrica de escopo inventado",
-    goldenFilesMissed: "string[] — arquivos do PR original que o agente nao tocou",
-    heldOutOverwrites: "string[] — testes que o agente escreveu e o grader sobrescreveu",
-    gates: "{ lint, typecheck, arch } — true | false | null (nao aplicavel)",
-    gateDetail: "array com comando, exit code, duracao e saida truncada",
+    filesTouched: "string[] — what the agent wrote, before planting the grader",
+    filesOutsideGoldenDiff: "string[] — invented-scope metric",
+    goldenFilesMissed: "string[] — files from the original PR the agent never touched",
+    heldOutOverwrites: "string[] — tests the agent wrote that the grader overwrote",
+    gates: "{ lint, typecheck, arch } — true | false | null (not applicable)",
+    gateDetail: "array of command, exit code, duration and truncated output",
     heldOutTests: "{ passed, failed, total, ran }",
-    success: "boolean — todo teste held-out passa E nenhum gate vermelho",
+    success: "boolean — every held-out test passes AND no gate is red",
     status: "ok | agent-failed | setup-failed | graded-failed",
     notes: "string",
   },
   derived: {
-    creditsPerSuccess: "sum(custo) / count(success) por arm — a metrica que decide",
-    pass1: "count(success) / count(runs) por arm",
-    scopeCreep: "mean(filesOutsideGoldenDiff.length) por arm",
-    completeness: "mean(1 - goldenFilesMissed/goldenFiles) por arm — task pela metade",
+    creditsPerSuccess: "sum(cost) / count(success) per arm — the deciding metric",
+    pass1: "count(success) / count(runs) per arm",
+    scopeCreep: "mean(filesOutsideGoldenDiff.length) per arm",
+    completeness: "mean(1 - goldenFilesMissed/goldenFiles) per arm — half-done task",
   },
 };
 
@@ -66,7 +66,7 @@ export async function loadRuns(root: string): Promise<RunRecord[]> {
   return await readJsonl<RunRecord>(runsPath(root));
 }
 
-/** Runs ja gravados, por runId. O runner usa para retomar de onde parou. */
+/** Runs already recorded, by runId. The runner uses it to resume where it stopped. */
 export async function completedRunIds(root: string): Promise<Set<string>> {
   const runs = await loadRuns(root);
   return new Set(runs.map((r) => r.runId));
@@ -82,60 +82,60 @@ export async function scaffoldObservability(root: string, cfg: BenchConfig): Pro
   if (!existsSync(creditsFile)) {
     await writeJson(creditsFile, {
       note:
-        "Snapshot manual de creditos. Use quando o stream do CLI nao expuser usage. " +
-        "Rode os arms em serie e registre o saldo do dashboard antes e depois de cada bloco. " +
-        "O bench-report cruza estes snapshots com os runs pelo intervalo de tempo.",
-      model: cfg.model ?? "REGISTRE AQUI O MODELO TRAVADO",
+        "Manual credit snapshots. Use these when the CLI stream exposes no usage. " +
+        "Run the arms serially and record the dashboard balance before and after each block. " +
+        "bench-report matches these snapshots to runs by time interval.",
+      model: cfg.model ?? "RECORD THE PINNED MODEL HERE",
       snapshots: [
         {
-          _exemplo: true,
+          _example: true,
           at: "2026-01-01T10:00:00Z",
           balance: 0,
-          label: "antes do bloco A0",
+          label: "before block A0",
         },
       ],
     });
   }
 
-  const preReg = path.join(dir, "PRE-REGISTRO.md");
+  const preReg = path.join(dir, "PRE-REGISTRATION.md");
   if (!existsSync(preReg)) {
     await writeText(
       preReg,
-      `# Pre-registro do benchmark
+      `# Benchmark pre-registration
 
-Preencha ANTES de olhar qualquer resultado. Isso te protege de escolher, depois,
-o numero que confirma o que voce ja queria.
+Fill this in BEFORE looking at any result. It protects you from later picking
+the number that confirms what you already wanted.
 
-## Criterio de adocao
+## Adoption criterion
 
-> Adoto o arm vencedor se: ______________________________________
-> (exemplo: credito por tarefa aprovada cair >= 30% contra A0, sem queda de pass@1)
+> I adopt the winning arm if: ______________________________________
+> (example: credits per approved task drop >= 30% against A0, with no pass@1 loss)
 
-## Metrica primaria
+## Primary metric
 
-Creditos por tarefa aprovada.
+Credits per approved task.
 
-## Metricas secundarias
+## Secondary metrics
 
-pass@1, arquivos fora do golden diff, arquivos do golden nao tocados, wall-clock.
+pass@1, files outside the golden diff, golden files never touched, wall-clock.
 
-## Modelo travado
+## Pinned model
 
-${cfg.model ?? "(definir antes de rodar)"}
+${cfg.model ?? "(define before running)"}
 
-## Repeticoes por celula
+## Repetitions per cell
 
 ${cfg.reps ?? 3}
 
-## O que invalida este benchmark
+## What invalidates this benchmark
 
-- [ ] variancia entre reps maior que a diferenca entre arms
-- [ ] menos de 3 reps por celula
-- [ ] arms rodados em ordem fixa (drift do servico vira efeito falso)
-- [ ] modelo trocado no meio
-- [ ] perfil semantico com confidence baixa alimentando o steering de A2 em diante
+- [ ] variance between reps larger than the difference between arms
+- [ ] fewer than 3 reps per cell
+- [ ] arms run in a fixed order (service drift becomes a fake effect)
+- [ ] model switched midway
+- [ ] low-confidence semantic profile feeding the steering of A2 onwards
 
-## Decisao registrada em ____ / ____ / ______, por ______________________
+## Decision recorded on ____ / ____ / ______, by ______________________
 `,
     );
   }

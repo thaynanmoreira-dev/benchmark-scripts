@@ -103,7 +103,7 @@ Bootstrap. Adapta o benchmark a qualquer projeto.
    camadas reais, invariantes críticas, resumo de domínio, non-goals prováveis
 4. perfil → `.bench/projects/<repo>.json`
 5. arms gerados a partir do perfil → `.bench/arms/*.json`
-6. observabilidade → `.bench/obs/` (runs.jsonl, schema.json, credits.json, PRE-REGISTRO.md)
+6. observabilidade → `.bench/obs/` (runs.jsonl, schema.json, credits.json, PRE-REGISTRATION.md)
 7. plano randomizado → `.bench/plan.json`
 
 Rodar `--probe-agent` primeiro para calibrar o adapter do CLI antes de qualquer coisa.

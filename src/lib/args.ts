@@ -1,17 +1,17 @@
-/** Parser de flags minimalista, compartilhado pelos quatro CLIs. */
+/** Minimal flag parser, shared by the four CLIs. */
 
 export interface ArgReader {
-  /** Valor de `--flag valor`. */
+  /** Value of `--flag value`. */
   str(flag: string, fallback?: string): string | undefined;
-  /** Valor numérico, com fallback obrigatório. */
+  /** Numeric value, with a mandatory fallback. */
   num(flag: string, fallback: number): number;
-  /** Presença de `--flag`. */
+  /** Presence of `--flag`. */
   bool(flag: string): boolean;
-  /** `--flag a,b,c` -> ["a","b","c"], vazios descartados. */
+  /** `--flag a,b,c` -> ["a","b","c"], empties dropped. */
   list(flag: string, fallback?: string): string[];
-  /** Valores numéricos separados por vírgula. */
+  /** Comma-separated numeric values. */
   nums(flag: string, fallback: string): number[];
-  /** Argumentos posicionais, isto é, os não consumidos por flags lidas. */
+  /** Positional arguments: the ones no flag consumed. */
   rest(): string[];
   raw: string[];
 }

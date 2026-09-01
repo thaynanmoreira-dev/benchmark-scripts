@@ -69,7 +69,7 @@ export const github: PrProvider = {
           closedDate: pr.merged_at,
           isDraft: pr.draft === true,
           url: pr.html_url,
-          // PR de fork: o sha do head so e alcancavel por esta ref
+          // fork PR: the head sha is only reachable through this ref
           fetchRefs: [`refs/pull/${pr.number}/head`],
         });
         if (out.length >= opts.max) break;

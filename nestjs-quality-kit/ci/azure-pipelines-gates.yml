@@ -1,0 +1,121 @@
+# Quality gates on Azure DevOps.
+#
+# Two stages on purpose: the fast gates run in seconds and fail the PR early;
+# mutation takes minutes and only runs if the rest passed. Running mutation next
+# to lint just makes the developer wait to find out about an import error.
+#
+# Reference it from your main pipeline:
+#
+#   stages:
+#     - template: .azuredevops/azure-pipelines-gates.yml
+#       parameters: { nodeVersion: '22.x' }
+
+parameters:
+  - name: nodeVersion
+    type: string
+    default: '22.x'
+  - name: runMutation
+    type: boolean
+    default: true
+
+stages:
+  - stage: fast_gates
+    displayName: Fast gates
+    jobs:
+      - job: static_checks
+        displayName: Static checks, architecture and tests
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - task: NodeTool@0
+            displayName: Node ${{ parameters.nodeVersion }}
+            inputs:
+              versionSpec: ${{ parameters.nodeVersion }}
+
+          - script: npm ci
+            displayName: Install dependencies
+
+          # Each gate is its own step so Azure DevOps shows which one failed
+          # without anyone opening the whole log.
+          # First of all: the only gate that catches a missing requirement. The
+          # others look at the code, and code that is wrong for the right reason
+          # passes every one of them.
+          - script: npm run contract
+            displayName: 'Task contract: no open questions'
+
+          - script: npm run format:check
+            displayName: 'Canonical formatting'
+          - script: npm run typecheck
+            displayName: Typecheck
+          - script: npm run typecoverage
+            displayName: 'Type coverage 100%'
+          - script: npm run lint
+            displayName: 'Lint: complexity, size, types, names, tests'
+          - script: npm run arch
+            displayName: 'Architecture: dependency direction'
+          - script: npm run structure
+            displayName: 'Structure: file and folder names'
+          - script: npm run halstead
+            displayName: 'Halstead: difficulty per function'
+          - script: npm run secrets
+            displayName: 'Secrets in the repository'
+          - script: npm run no-bypass
+            displayName: 'No bypass: no new suppression'
+          - script: npm run gates-intact
+            displayName: 'Gates intact: no limit loosened or deleted'
+          - script: npm run deadcode
+            displayName: 'Dead code'
+          - script: npm run duplication
+            displayName: 'Redundant code'
+          - script: npm test
+            displayName: 'Tests and 100% coverage'
+
+          # Outside the local loop on purpose: it depends on the network and on
+          # the state of a public advisory, so it can go red with nobody having
+          # touched anything. Here it is information to act on, not a gate.
+          - script: npm run vulns
+            displayName: 'Known vulnerabilities in dependencies'
+            continueOnError: true
+
+          - task: PublishCodeCoverageResults@2
+            displayName: Publish coverage
+            condition: succeededOrFailed()
+            inputs:
+              summaryFileLocation: '$(System.DefaultWorkingDirectory)/coverage/lcov.info'
+
+  - ${{ if eq(parameters.runMutation, true) }}:
+      - stage: mutation
+        displayName: Mutation
+        dependsOn: fast_gates
+        condition: succeeded()
+        jobs:
+          - job: stryker
+            displayName: Stryker, zero survivors
+            timeoutInMinutes: 60
+            pool:
+              vmImage: ubuntu-latest
+            steps:
+              - task: NodeTool@0
+                inputs:
+                  versionSpec: ${{ parameters.nodeVersion }}
+
+              - script: npm ci
+                displayName: Install dependencies
+
+              # The incremental report cuts the time on the next PR; without the
+              # cache, every run redoes the whole suite.
+              - task: Cache@2
+                displayName: Cache the incremental report
+                inputs:
+                  key: 'stryker | "$(Agent.OS)" | package-lock.json'
+                  path: reports
+
+              - script: npm run mutation
+                displayName: 'Mutation: zero survivors'
+
+              - task: PublishBuildArtifacts@1
+                displayName: Publish the mutation report
+                condition: succeededOrFailed()
+                inputs:
+                  pathToPublish: reports/mutation
+                  artifactName: mutation

@@ -2,21 +2,21 @@
 /**
  * bench-report.ts
  *
- * Le obs/runs.jsonl e responde a pergunta do benchmark:
- * qual arm entrega mais tarefa aprovada por credito gasto.
+ * Reads obs/runs.jsonl and answers the benchmark's question:
+ * which arm delivers the most approved tasks per credit spent.
  *
- * Metrica primaria: custo por tarefa aprovada. Nao pass@1 cru — um arm barato
- * que falha metade das vezes custa mais no total do que um arm caro que acerta.
+ * Primary metric: cost per approved task. Not raw pass@1 — a cheap arm that
+ * fails half the time costs more in total than an expensive arm that lands it.
  *
- * Tambem roda as checagens de validade. Se a variancia entre reps for maior
- * que a diferenca entre arms, o benchmark nao concluiu nada, e o relatorio
- * diz isso em vez de deixar voce escolher o numero que preferir.
+ * It also runs the validity checks. If the variance between reps is larger
+ * than the difference between arms, the benchmark concluded nothing, and the
+ * report says so instead of letting you pick whichever number you like.
  *
- * Uso:
+ * Usage:
  *   node src/bench-report.ts --root .bench
- *   node src/bench-report.ts --by-task --markdown relatorio.md
+ *   node src/bench-report.ts --by-task --markdown report.md
  *
- * Sem dependencias externas. Node >= 22.6.
+ * No external dependencies. Node >= 22.6.
  */
 
 import path from "node:path";
@@ -53,33 +53,33 @@ interface ArmStats {
   completeness: number;
   turns: number;
   wallClockMs: number;
-  /** Desvio do custo dentro da mesma celula (arm x tarefa). */
+  /** Cost deviation within the same cell (arm x task). */
   withinCellStdev: number;
   setupFailures: number;
   timeouts: number;
 }
 
-// ─────────────────────────────────────────────────── custo por run
+// ─────────────────────────────────────────────────── cost per run
 
-type CostUnit = "creditos" | "USD" | "tokens" | "n/d";
+type CostUnit = "credits" | "USD" | "tokens" | "n/a";
 
 /**
- * Escolhe UMA unidade de custo para todo o relatorio, na ordem em que ela
- * responde a pergunta do time. Misturar unidade entre arms produziria uma
- * comparacao sem sentido, entao a unidade e global.
+ * Picks ONE cost unit for the whole report, ordered by how directly it answers
+ * the team's question. Mixing units between arms would produce a meaningless
+ * comparison, so the unit is global.
  */
 function pickCostUnit(runs: RunRecord[]): CostUnit {
   if (runs.some((r) => r.creditsDelta !== null || r.usageFromStream.credits !== null)) {
-    return "creditos";
+    return "credits";
   }
   if (runs.some((r) => r.usageFromStream.costUsd !== null)) return "USD";
   if (runs.some((r) => r.usageFromStream.totalTokens !== null)) return "tokens";
-  return "n/d";
+  return "n/a";
 }
 
 function costOf(run: RunRecord, unit: CostUnit): number | null {
   switch (unit) {
-    case "creditos":
+    case "credits":
       return run.creditsDelta ?? run.usageFromStream.credits;
     case "USD":
       return run.usageFromStream.costUsd;
@@ -91,10 +91,11 @@ function costOf(run: RunRecord, unit: CostUnit): number | null {
 }
 
 /**
- * Distribui saldo de credito lido a mao pelos runs de cada janela.
+ * Spreads a hand-read credit balance across the runs in each window.
  *
- * Funciona so se os arms foram rodados EM SERIE, com um snapshot antes e
- * outro depois de cada bloco. Fora disso o numero e ficcao, e o relatorio avisa.
+ * This only works if the arms were run SERIALLY, with one snapshot before and
+ * another after each block. Outside that the number is fiction, and the report
+ * says so.
  */
 function attributeManualCredits(runs: RunRecord[], snapshots: CreditSnapshot[]): number {
   const valid = snapshots
@@ -121,7 +122,7 @@ function attributeManualCredits(runs: RunRecord[], snapshots: CreditSnapshot[]):
   return attributed;
 }
 
-// ─────────────────────────────────────────────────── agregacao
+// ─────────────────────────────────────────────────── aggregation
 
 function cellKey(r: RunRecord): string {
   return `${r.arm}|${r.taskId}`;
@@ -150,7 +151,7 @@ function aggregate(runs: RunRecord[], unit: CostUnit, labels: Map<string, string
     const costs = armRuns.map((r) => costOf(r, unit)).filter((c): c is number => c !== null);
     const costTotal = costs.length ? costs.reduce((a, b) => a + b, 0) : null;
 
-    // variancia dentro da celula: reps da mesma (arm x tarefa)
+    // within-cell variance: reps of the same (arm x task)
     const cells = new Map<string, number[]>();
     for (const r of armRuns) {
       const c = costOf(r, unit);
@@ -194,90 +195,90 @@ function aggregate(runs: RunRecord[], unit: CostUnit, labels: Map<string, string
   return stats.sort((a, b) => a.arm.localeCompare(b.arm));
 }
 
-// ─────────────────────────────────────────────────── comparacao pareada
+// ─────────────────────────────────────────────────── paired comparison
 
-interface Pareado {
+interface Paired {
   arm: string;
-  soBaseline: number;
-  soTratamento: number;
-  ambos: number;
-  nenhum: number;
+  onlyBaseline: number;
+  onlyTreatment: number;
+  both: number;
+  neither: number;
   p: number;
 }
 
-/** Uma tarefa passa num arm se a maioria das repeticoes dela passou. */
-function passouPorTarefa(runs: RunRecord[], arm: string): Map<string, boolean> {
-  const porTarefa = new Map<string, RunRecord[]>();
+/** A task passes in an arm if the majority of its repetitions passed. */
+function passedByTask(runs: RunRecord[], arm: string): Map<string, boolean> {
+  const byTask = new Map<string, RunRecord[]>();
   for (const r of runs) {
     if (r.arm !== arm) continue;
-    porTarefa.set(r.taskId, [...(porTarefa.get(r.taskId) ?? []), r]);
+    byTask.set(r.taskId, [...(byTask.get(r.taskId) ?? []), r]);
   }
-  const saida = new Map<string, boolean>();
-  for (const [tarefa, lista] of porTarefa) {
-    const ok = lista.filter((r) => r.success).length;
-    saida.set(tarefa, ok * 2 > lista.length);
+  const out = new Map<string, boolean>();
+  for (const [task, list] of byTask) {
+    const ok = list.filter((r) => r.success).length;
+    out.set(task, ok * 2 > list.length);
   }
-  return saida;
+  return out;
 }
 
 /**
- * Compara cada arm com o baseline NAS MESMAS tarefas.
+ * Compares each arm to the baseline ON THE SAME TASKS.
  *
- * Duas taxas de sucesso soltas escondem que os arms rodaram o mesmo conjunto:
- * o que separa um do outro sao as tarefas em que eles discordaram, e nada mais.
+ * Two loose success rates hide the fact that the arms ran the same set: what
+ * separates one from the other are the tasks where they disagreed, nothing else.
  */
-function compararPareado(runs: RunRecord[], baselineId: string): Pareado[] {
-  const base = passouPorTarefa(runs, baselineId);
+function comparePaired(runs: RunRecord[], baselineId: string): Paired[] {
+  const base = passedByTask(runs, baselineId);
   const arms = [...new Set(runs.map((r) => r.arm))].filter((a) => a !== baselineId).sort();
 
   return arms.map((arm) => {
-    const trat = passouPorTarefa(runs, arm);
-    let soBaseline = 0;
-    let soTratamento = 0;
-    let ambos = 0;
-    let nenhum = 0;
-    for (const [tarefa, passouBase] of base) {
-      const passouTrat = trat.get(tarefa);
-      if (passouTrat === undefined) continue;
-      if (passouBase && passouTrat) ambos++;
-      else if (passouBase) soBaseline++;
-      else if (passouTrat) soTratamento++;
-      else nenhum++;
+    const treatment = passedByTask(runs, arm);
+    let onlyBaseline = 0;
+    let onlyTreatment = 0;
+    let both = 0;
+    let neither = 0;
+    for (const [task, baselinePassed] of base) {
+      const treatmentPassed = treatment.get(task);
+      if (treatmentPassed === undefined) continue;
+      if (baselinePassed && treatmentPassed) both++;
+      else if (baselinePassed) onlyBaseline++;
+      else if (treatmentPassed) onlyTreatment++;
+      else neither++;
     }
-    return { arm, soBaseline, soTratamento, ambos, nenhum, p: mcnemar(soBaseline, soTratamento).p };
+    return { arm, onlyBaseline, onlyTreatment, both, neither, p: mcnemar(onlyBaseline, onlyTreatment).p };
   });
 }
 
 /**
- * Tarefa so discrimina se o baseline as vezes passa e as vezes falha.
+ * A task only discriminates if the baseline sometimes passes and sometimes fails.
  *
- * Se o baseline acerta sempre, nao ha o que melhorar; se erra sempre, o
- * problema e a tarefa, nao a configuracao. Nos dois casos ela entra na conta
- * puxando a media e nao carrega informacao nenhuma sobre qual arm e melhor.
+ * If the baseline always passes there is nothing to improve; if it always fails
+ * the problem is the task, not the configuration. Either way it enters the
+ * tally pulling the mean and carries no information about which arm is better.
  */
-function triagemDeDiscriminacao(
+function screenForDiscrimination(
   runs: RunRecord[],
   baselineId: string,
-): { tarefa: string; taxa: number; veredito: string }[] {
-  const porTarefa = new Map<string, RunRecord[]>();
+): { task: string; rate: number; verdict: string }[] {
+  const byTask = new Map<string, RunRecord[]>();
   for (const r of runs) {
     if (r.arm !== baselineId) continue;
-    porTarefa.set(r.taskId, [...(porTarefa.get(r.taskId) ?? []), r]);
+    byTask.set(r.taskId, [...(byTask.get(r.taskId) ?? []), r]);
   }
-  const saida: { tarefa: string; taxa: number; veredito: string }[] = [];
-  for (const [tarefa, lista] of porTarefa) {
-    const taxa = lista.filter((r) => r.success).length / lista.length;
-    const veredito =
-      taxa >= 0.9 ? "fácil demais" : taxa <= 0.1 ? "difícil demais" : "discrimina";
-    saida.push({ tarefa, taxa, veredito });
+  const out: { task: string; rate: number; verdict: string }[] = [];
+  for (const [task, list] of byTask) {
+    const rate = list.filter((r) => r.success).length / list.length;
+    const verdict =
+      rate >= 0.9 ? "too easy" : rate <= 0.1 ? "too hard" : "discriminates";
+    out.push({ task, rate, verdict });
   }
-  return saida.sort((a, b) => a.taxa - b.taxa);
+  return out.sort((a, b) => a.rate - b.rate);
 }
 
-// ─────────────────────────────────────────────────── validade
+// ─────────────────────────────────────────────────── validity
 
 interface Validity {
-  level: "ok" | "atencao" | "invalido";
+  level: "ok" | "warning" | "invalid";
   messages: string[];
 }
 
@@ -285,38 +286,38 @@ function checkValidity(runs: RunRecord[], stats: ArmStats[], plan: Plan | null):
   const messages: string[] = [];
   let level: Validity["level"] = "ok";
   const escalate = (l: Validity["level"]): void => {
-    if (l === "invalido" || (l === "atencao" && level === "ok")) level = l;
+    if (l === "invalid" || (l === "warning" && level === "ok")) level = l;
   };
 
-  const models = new Set(runs.map((r) => r.model ?? "(nao travado)"));
+  const models = new Set(runs.map((r) => r.model ?? "(not pinned)"));
   if (models.size > 1) {
-    escalate("invalido");
+    escalate("invalid");
     messages.push(
-      `Modelo trocou no meio do benchmark: ${[...models].join(", ")}. ` +
-        `A comparacao entre arms nao se sustenta — refaca com um modelo so.`,
+      `The model changed midway through the benchmark: ${[...models].join(", ")}. ` +
+        `The comparison between arms does not hold — redo it with a single model.`,
     );
   }
-  if (models.has("(nao travado)")) {
-    escalate("atencao");
-    messages.push("Ha runs sem modelo registrado. Trave cfg.model antes de rodar.");
+  if (models.has("(not pinned)")) {
+    escalate("warning");
+    messages.push("Some runs have no recorded model. Pin cfg.model before running.");
   }
 
   const cellCounts = new Map<string, number>();
   for (const r of runs) cellCounts.set(cellKey(r), (cellCounts.get(cellKey(r)) ?? 0) + 1);
   const thin = [...cellCounts.entries()].filter(([, n]) => n < 3);
   if (thin.length) {
-    escalate("atencao");
+    escalate("warning");
     messages.push(
-      `${thin.length} celula(s) com menos de 3 repeticoes. O agente e estocastico: ` +
-        `com n < 3 a diferenca entre arms pode ser so sorteio.`,
+      `${thin.length} cell(s) with fewer than 3 repetitions. The agent is stochastic: ` +
+        `with n < 3 the difference between arms may be pure chance.`,
     );
   }
 
   if (plan && runs.length < plan.totalRuns) {
-    escalate("atencao");
+    escalate("warning");
     messages.push(
-      `${plan.totalRuns - runs.length} de ${plan.totalRuns} runs do plano ainda nao rodaram. ` +
-        `Comparar arms com cobertura desigual enviesa o resultado.`,
+      `${plan.totalRuns - runs.length} of ${plan.totalRuns} planned runs have not run yet. ` +
+        `Comparing arms with uneven coverage biases the result.`,
     );
   }
 
@@ -326,12 +327,12 @@ function checkValidity(runs: RunRecord[], stats: ArmStats[], plan: Plan | null):
     const spread = Math.max(...costs) - Math.min(...costs);
     const noise = Math.max(...withCost.map((s) => s.withinCellStdev));
     if (noise > 0 && noise > spread) {
-      escalate("invalido");
+      escalate("invalid");
       messages.push(
-        `Ruido maior que sinal: a variacao entre repeticoes da MESMA celula ` +
-          `(desvio ${num(noise)}) supera a diferenca entre os arms (${num(spread)}). ` +
-          `Este benchmark nao conclui nada: o que separa os arms cabe dentro do ` +
-          `sorteio. Aumente as repeticoes ou escolha tarefas menos ruidosas.`,
+        `Noise larger than signal: the variation between repetitions of the SAME cell ` +
+          `(stdev ${num(noise)}) exceeds the difference between arms (${num(spread)}). ` +
+          `This benchmark concludes nothing: what separates the arms fits inside the ` +
+          `chance interval. Raise the repetitions or pick less noisy tasks.`,
       );
     }
   }
@@ -340,37 +341,37 @@ function checkValidity(runs: RunRecord[], stats: ArmStats[], plan: Plan | null):
     (r) => r.status === "setup-failed" || r.status === "agent-failed",
   );
   if (brokenRuns.length > runs.length * 0.1) {
-    escalate("atencao");
+    escalate("warning");
     messages.push(
-      `${brokenRuns.length} run(s) falharam antes de qualquer avaliacao (setup ou agente). ` +
-        `Investigue .bench/logs/ antes de ler os numeros.`,
+      `${brokenRuns.length} run(s) failed before any grading (setup or agent). ` +
+        `Investigate .bench/logs/ before reading the numbers.`,
     );
   }
 
   const noGrader = runs.filter((r) => !r.heldOutTests.ran).length;
   if (noGrader) {
-    escalate("atencao");
+    escalate("warning");
     messages.push(
-      `${noGrader} run(s) sem grader held-out executado: essas tarefas nunca podem ser ` +
-        `aprovadas. Rode select-prs com --require-tests.`,
+      `${noGrader} run(s) with no held-out grader executed: those tasks can never be ` +
+        `approved. Run select-prs with --require-tests.`,
     );
   }
 
   return { level, messages };
 }
 
-// ─────────────────────────────────────────────────── saida
+// ─────────────────────────────────────────────────── output
 
 function pct(v: number): string {
   return `${(v * 100).toFixed(0)}%`;
 }
 
-/** Precisao adaptativa: custo em USD e em token nao cabem na mesma escala. */
+/** Adaptive precision: cost in USD and in tokens do not share a scale. */
 function num(v: number | null): string {
   if (v === null) return "-";
   const abs = Math.abs(v);
   const digits = abs === 0 ? 0 : abs < 0.01 ? 4 : abs < 1 ? 3 : abs < 100 ? 2 : 0;
-  return v.toLocaleString("pt-BR", { maximumFractionDigits: digits });
+  return v.toLocaleString("en-US", { maximumFractionDigits: digits });
 }
 
 function delta(value: number | null, baseline: number | null, lowerIsBetter: boolean): string {
@@ -385,16 +386,16 @@ function delta(value: number | null, baseline: number | null, lowerIsBetter: boo
 function printReport(stats: ArmStats[], unit: CostUnit, baselineId: string): void {
   const baseline = stats.find((s) => s.arm === baselineId) ?? stats[0];
 
-  rule(`custo por tarefa aprovada (${unit})`);
+  rule(`cost per approved task (${unit})`);
   table(
     [
       { header: "arm", width: 4 },
-      { header: "configuracao", width: 28 },
+      { header: "configuration", width: 28 },
       { header: "runs", width: 5, align: "right" },
       { header: "pass@1", width: 7, align: "right" },
-      { header: "IC95", width: 13, align: "right" },
-      { header: `custo/run`, width: 10, align: "right" },
-      { header: `custo/aprov`, width: 12, align: "right" },
+      { header: "CI95", width: 13, align: "right" },
+      { header: `cost/run`, width: 10, align: "right" },
+      { header: `cost/passed`, width: 12, align: "right" },
       { header: `vs ${baseline?.arm ?? "-"}`, width: 12, align: "right" },
     ],
     stats.map((s) => [
@@ -409,20 +410,20 @@ function printReport(stats: ArmStats[], unit: CostUnit, baselineId: string): voi
     ]),
   );
 
-  rule("qualidade e comportamento");
+  rule("quality and behaviour");
   table(
     [
       { header: "arm", width: 4 },
-      { header: "escopo inventado", width: 17, align: "right" },
-      { header: "completude", width: 11, align: "right" },
-      { header: "turnos", width: 7, align: "right" },
+      { header: "invented scope", width: 17, align: "right" },
+      { header: "completeness", width: 11, align: "right" },
+      { header: "turns", width: 7, align: "right" },
       { header: "wall-clock", width: 11, align: "right" },
-      { header: "ruido/celula", width: 13, align: "right" },
-      { header: "quebrados", width: 10, align: "right" },
+      { header: "noise/cell", width: 13, align: "right" },
+      { header: "broken", width: 10, align: "right" },
     ],
     stats.map((s) => [
       s.arm,
-      `${s.scopeCreep.toFixed(2)} arq/run`,
+      `${s.scopeCreep.toFixed(2)} files/run`,
       pct(s.completeness),
       s.turns.toFixed(1),
       fmtMs(s.wallClockMs),
@@ -432,82 +433,82 @@ function printReport(stats: ArmStats[], unit: CostUnit, baselineId: string): voi
   );
 }
 
-function printPareado(pareados: Pareado[], baselineId: string): void {
-  rule(`comparação pareada contra ${baselineId}`);
+function printPaired(paired: Paired[], baselineId: string): void {
+  rule(`paired comparison against ${baselineId}`);
   table(
     [
       { header: "arm", width: 4 },
-      { header: `só ${baselineId}`, width: 10, align: "right" },
-      { header: "só o arm", width: 9, align: "right" },
-      { header: "os dois", width: 8, align: "right" },
-      { header: "nenhum", width: 7, align: "right" },
+      { header: `${baselineId} only`, width: 10, align: "right" },
+      { header: "arm only", width: 9, align: "right" },
+      { header: "both", width: 8, align: "right" },
+      { header: "none", width: 7, align: "right" },
       { header: "p (McNemar)", width: 12, align: "right" },
-      { header: "leitura", width: 26 },
+      { header: "reading", width: 26 },
     ],
-    pareados.map((x) => {
-      const discordancias = x.soBaseline + x.soTratamento;
-      const leitura =
-        discordancias === 0
-          ? dim("empataram em tudo")
-          : discordancias < 6
-            ? yellow(`só ${discordancias} discordância(s)`)
+    paired.map((x) => {
+      const disagreements = x.onlyBaseline + x.onlyTreatment;
+      const reading =
+        disagreements === 0
+          ? dim("tied on everything")
+          : disagreements < 6
+            ? yellow(`only ${disagreements} disagreement(s)`)
             : x.p < 0.05
-              ? x.soTratamento > x.soBaseline
-                ? green("melhor que o baseline")
-                : red("pior que o baseline")
-              : "diferença não separável";
+              ? x.onlyTreatment > x.onlyBaseline
+                ? green("better than the baseline")
+                : red("worse than the baseline")
+              : "difference not separable";
       return [
         x.arm,
-        String(x.soBaseline),
-        String(x.soTratamento),
-        String(x.ambos),
-        String(x.nenhum),
-        x.p < 0.0001 ? "<0,0001" : x.p.toFixed(4),
-        leitura,
+        String(x.onlyBaseline),
+        String(x.onlyTreatment),
+        String(x.both),
+        String(x.neither),
+        x.p < 0.0001 ? "<0.0001" : x.p.toFixed(4),
+        reading,
       ];
     }),
   );
   console.log(
     dim(
-      "  Só as tarefas em que os arms discordaram carregam informação. Com menos de\n" +
-        "  seis discordâncias o teste não conclui, por mais que a média pareça diferente.",
+      "  Only the tasks where the arms disagreed carry information. With fewer than\n" +
+        "  six disagreements the test concludes nothing, however different the means look.",
     ),
   );
 }
 
-function printDiscriminacao(
-  itens: { tarefa: string; taxa: number; veredito: string }[],
+function printDiscrimination(
+  items: { task: string; rate: number; verdict: string }[],
   baselineId: string,
 ): void {
-  const inuteis = itens.filter((i) => i.veredito !== "discrimina");
-  if (inuteis.length === 0) return;
+  const useless = items.filter((i) => i.verdict !== "discriminates");
+  if (useless.length === 0) return;
 
-  rule("tarefas que não discriminam");
+  rule("tasks that do not discriminate");
   table(
     [
-      { header: "tarefa", width: 30 },
-      { header: `${baselineId} passa`, width: 12, align: "right" },
-      { header: "veredito", width: 16 },
+      { header: "task", width: 30 },
+      { header: `${baselineId} passes`, width: 12, align: "right" },
+      { header: "verdict", width: 16 },
     ],
-    inuteis.map((i) => [i.tarefa.slice(0, 30), pct(i.taxa), i.veredito]),
+    useless.map((i) => [i.task.slice(0, 30), pct(i.rate), i.verdict]),
   );
   console.log(
     dim(
-      `  ${inuteis.length} de ${itens.length} tarefa(s) não separam os arms: o baseline acerta\n` +
-        "  sempre ou erra sempre. Elas entram na média sem carregar informação. Troque\n" +
-        "  por tarefas em que o baseline passa entre 30% e 70% das vezes.",
+      `  ${useless.length} of ${items.length} task(s) do not separate the arms: the baseline\n` +
+        "  always passes or always fails. They enter the mean carrying no information.\n" +
+        "  Replace them with tasks the baseline passes between 30% and 70% of the time.",
     ),
   );
 }
 
 function printByTask(runs: RunRecord[], unit: CostUnit): void {
-  rule("por tarefa");
+  rule("by task");
   const tasks = [...new Set(runs.map((r) => r.taskId))].sort();
   const arms = [...new Set(runs.map((r) => r.arm))].sort();
 
   table(
     [
-      { header: "tarefa", width: 26 },
+      { header: "task", width: 26 },
       ...arms.map((a) => ({ header: a, width: 9, align: "right" as const })),
     ],
     tasks.map((task) => [
@@ -537,55 +538,56 @@ function markdown(stats: ArmStats[], unit: CostUnit, validity: Validity, baselin
     .filter((s) => s.costPerSuccess !== null)
     .sort((a, b) => (a.costPerSuccess as number) - (b.costPerSuccess as number))[0];
 
-  return `# Resultado do benchmark de configuracoes
+  return `# Configuration benchmark result
 
-Gerado em ${new Date().toISOString()}. Unidade de custo: **${unit}**.
+Generated at ${new Date().toISOString()}. Cost unit: **${unit}**.
 Baseline: **${baseline?.arm ?? "-"}**.
 
-## Metrica primaria — custo por tarefa aprovada
+## Primary metric — cost per approved task
 
-| arm | configuracao | runs | pass@1 | custo/run | custo/aprovada | escopo inventado | completude |
+| arm | configuration | runs | pass@1 | cost/run | cost/passed | invented scope | completeness |
 |---|---|---|---|---|---|---|---|
 ${rows}
 
 ${
   best
-    ? `Menor custo por tarefa aprovada: **${best.arm} — ${best.label}** ` +
-      `(${num(best.costPerSuccess)} ${unit} por aprovada, pass@1 ${pct(best.pass1)}).`
-    : "Nenhum arm registrou custo: use os snapshots manuais em obs/credits.json."
+    ? `Lowest cost per approved task: **${best.arm} — ${best.label}** ` +
+      `(${num(best.costPerSuccess)} ${unit} per approved task, pass@1 ${pct(best.pass1)}).`
+    : "No arm recorded any cost: use the manual snapshots in obs/credits.json."
 }
 
-## Validade
+## Validity
 
 Status: **${validity.level}**
 
-${validity.messages.length ? validity.messages.map((m) => `- ${m}`).join("\n") : "- Nenhum problema detectado nas checagens automaticas."}
+${validity.messages.length ? validity.messages.map((m) => `- ${m}`).join("\n") : "- No problem detected by the automatic checks."}
 
-## Antes de adotar
+## Before adopting
 
-Compare o numero acima com o criterio que voce escreveu em \`obs/PRE-REGISTRO.md\`
-**antes** de olhar estes dados. Se o criterio nao foi batido, o vencedor aqui nao
-e motivo para mudar nada.
+Compare the number above with the criterion you wrote in \`obs/PRE-REGISTRATION.md\`
+**before** looking at this data. If the criterion was not met, the winner here is
+no reason to change anything.
 
-Benchmark offline mede tarefa isolada. Nao mede friccao no dia a dia, hook que o
-dev burla, nem contexto acumulado de uma feature de tres dias. Valide o vencedor
-com duas semanas de uso real antes de fechar a questao.
+An offline benchmark measures isolated tasks. It does not measure day-to-day
+friction, a hook the dev works around, or the accumulated context of a
+three-day feature. Validate the winner with two weeks of real use before
+settling the question.
 `;
 }
 
 // ─────────────────────────────────────────────────── main
 
 const USAGE = `
-bench-report — custo por tarefa aprovada, por arm, com checagem de validade
+bench-report — cost per approved task, per arm, with validity checks
 
-  node src/bench-report.ts [opcoes]
+  node src/bench-report.ts [options]
 
-  --root <dir>              raiz de trabalho               (da config, ou .bench)
-  --config <arquivo>        config, so para achar a raiz   (bench.config.json)
-  --baseline <arm>          arm de comparacao              (A0)
-  --only-arms A0,A3         restringe a analise
-  --by-task                 abre o resultado por tarefa
-  --markdown <arquivo>      escreve o relatorio em markdown
+  --root <dir>              working root                   (from config, or .bench)
+  --config <file>           config, only to find the root  (bench.config.json)
+  --baseline <arm>          arm to compare against         (A0)
+  --only-arms A0,A3         restrict the analysis
+  --by-task                 break the result down by task
+  --markdown <file>         write the report as markdown
 `;
 
 async function main(): Promise<void> {
@@ -602,14 +604,14 @@ async function main(): Promise<void> {
   const runs = await loadRuns(root);
   if (runs.length === 0) {
     throw new Error(
-      `Nenhum run em ${path.join(root, "obs/runs.jsonl")}.\n   Rode bench-run.ts antes.`,
+      `No run in ${path.join(root, "obs/runs.jsonl")}.\n   Run bench-run.ts first.`,
     );
   }
 
   const filterArms = a.list("--only-arms");
   const filtered = filterArms.length ? runs.filter((r) => filterArms.includes(r.arm)) : runs;
 
-  // dedup: o mesmo runId so conta uma vez, e vale a gravacao mais recente
+  // dedup: the same runId counts once, and the most recent record wins
   const byId = new Map<string, RunRecord>();
   for (const r of filtered) byId.set(r.runId, r);
   const unique = [...byId.values()];
@@ -636,34 +638,34 @@ async function main(): Promise<void> {
   const validity = checkValidity(unique, stats, plan);
 
   console.log(bold(`\nbench-report — ${unique.length} run(s), ${stats.length} arm(s)`));
-  info(`unidade de custo: ${unit === "n/d" ? yellow("nenhuma") : cyan(unit)}   raiz: ${root}`);
-  if (attributed) info(`${attributed} run(s) com credito atribuido por snapshot manual`);
-  if (duplicates) info(dim(`${duplicates} linha(s) duplicada(s) de runId ignorada(s)`));
+  info(`cost unit: ${unit === "n/a" ? yellow("none") : cyan(unit)}   root: ${root}`);
+  if (attributed) info(`${attributed} run(s) with credits attributed from a manual snapshot`);
+  if (duplicates) info(dim(`${duplicates} duplicated runId line(s) ignored`));
 
   printReport(stats, unit, baselineId);
 
-  const pareados = compararPareado(unique, baselineId);
-  if (pareados.length > 0) printPareado(pareados, baselineId);
+  const paired = comparePaired(unique, baselineId);
+  if (paired.length > 0) printPaired(paired, baselineId);
 
-  const discriminacao = triagemDeDiscriminacao(unique, baselineId);
-  printDiscriminacao(discriminacao, baselineId);
+  const discrimination = screenForDiscrimination(unique, baselineId);
+  printDiscrimination(discrimination, baselineId);
 
   if (a.bool("--by-task")) printByTask(unique, unit);
 
-  rule("validade");
+  rule("validity");
   if (validity.messages.length === 0) {
-    ok("nenhum problema detectado nas checagens automaticas");
+    ok("no problem detected by the automatic checks");
   } else {
     for (const m of validity.messages) {
-      if (validity.level === "invalido") fail(m);
+      if (validity.level === "invalid") fail(m);
       else warn(m);
     }
   }
 
-  if (unit === "n/d") {
+  if (unit === "n/a") {
     warn(
-      "Nenhum custo registrado. O stream do CLI nao expoe uso: rode os arms em serie e " +
-        `preencha os snapshots em ${path.join(root, "obs/credits.json")}.`,
+      "No cost recorded. The CLI stream exposes no usage: run the arms serially and " +
+        `fill in the snapshots at ${path.join(root, "obs/credits.json")}.`,
     );
   }
 
@@ -674,23 +676,23 @@ async function main(): Promise<void> {
     baseline: baselineId,
     totalRuns: unique.length,
     arms: stats,
-    pareado: pareados,
-    discriminacao,
+    paired,
+    discrimination,
     validity,
   });
 
   const mdPath = a.str("--markdown");
   if (mdPath) {
     await writeText(mdPath, markdown(stats, unit, validity, baselineId));
-    info(`markdown em ${mdPath}`);
+    info(`markdown at ${mdPath}`);
   }
 
   console.log("");
-  ok(`relatorio em ${path.join(root, "obs/report.json")}`);
+  ok(`report at ${path.join(root, "obs/report.json")}`);
   info(
     dim(
-      "Compare com o criterio de adocao que voce escreveu ANTES de olhar estes numeros, " +
-        `em ${path.join(root, "obs/PRE-REGISTRO.md")}.`,
+      "Compare it with the adoption criterion you wrote BEFORE looking at these numbers, " +
+        `in ${path.join(root, "obs/PRE-REGISTRATION.md")}.`,
     ),
   );
 }

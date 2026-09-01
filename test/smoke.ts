@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * Smoke test do harness inteiro, sem gastar um credito.
+ * Smoke test of the whole harness, without spending a single credit.
  *
- * Cria um repositorio git de mentira com tres PRs mergeadas, roda os quatro
- * CLIs em sequencia contra um agente falso e verifica que as metricas saem
- * como deveriam. E o que voce roda depois de mexer no harness, antes de
- * apontar ele para os repos de verdade.
+ * It builds a fake git repository with three merged PRs, runs the four CLIs in
+ * sequence against a fake agent and checks that the metrics come out as they
+ * should. This is what you run after touching the harness, before pointing it
+ * at real repositories.
  *
- * Uso: node test/smoke.ts [--keep]
+ * Usage: node test/smoke.ts [--keep]
  */
 
 import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
@@ -30,17 +30,17 @@ function check(label: string, condition: boolean, detail = ""): void {
     console.log(`  ${green("ok")}   ${label}`);
   } else {
     failures++;
-    console.log(`  ${red("FALHOU")} ${label}${detail ? `\n         ${dim(detail)}` : ""}`);
+    console.log(`  ${red("FAILED")} ${label}${detail ? `\n         ${dim(detail)}` : ""}`);
   }
 }
 
 async function sh(command: string, cwd: string): Promise<string> {
   const res = await runCommand(command, { cwd, timeoutMs: 120_000, maxOutput: 20_000 });
-  if (!res.ok) throw new Error(`comando falhou: ${command}\n${res.output}`);
+  if (!res.ok) throw new Error(`command failed: ${command}\n${res.output}`);
   return res.output;
 }
 
-/** Repositorio de mentira com tres PRs de tamanhos diferentes. */
+/** Fake repository with three PRs of different sizes. */
 async function buildFixture(dir: string): Promise<void> {
   const w = (rel: string, body: string) =>
     mkdir(path.dirname(path.join(dir, rel)), { recursive: true }).then(() =>
@@ -86,23 +86,23 @@ async function buildFixture(dir: string): Promise<void> {
     {
       "src/user/add.ts": "export function add(a: number, b: number): number {\n  return a + b;\n}\n",
       "src/user/add.spec.ts":
-        'import test from "node:test";\nimport assert from "node:assert";\nimport { add } from "./add.ts";\ntest("add soma", () => { assert.equal(add(1, 2), 3); });\n',
+        'import test from "node:test";\nimport assert from "node:assert";\nimport { add } from "./add.ts";\ntest("add sums", () => { assert.equal(add(1, 2), 3); });\n',
     },
-    "Merged PR 101: adiciona helper de soma",
-    "Criar em src/user/add.ts uma funcao add(a, b).",
+    "Merged PR 101: add a sum helper",
+    "Create a function add(a, b) in src/user/add.ts.",
   );
 
   await pr(
     "f2",
     {
-      "src/order/consts.ts": "export const TAXA = 2;\n",
+      "src/order/consts.ts": "export const RATE = 2;\n",
       "src/order/order.service.ts":
-        "export class OrderService {\n  total(valores: number[]): number {\n    return valores.reduce((a, b) => a + b, 0);\n  }\n}\n",
+        "export class OrderService {\n  total(values: number[]): number {\n    return values.reduce((a, b) => a + b, 0);\n  }\n}\n",
       "src/order/order.service.spec.ts":
         'import test from "node:test";\nimport assert from "node:assert";\nimport { OrderService } from "./order.service.ts";\ntest("total", () => { assert.equal(new OrderService().total([1, 2, 3]), 6); });\n',
     },
-    "Merged PR 102: servico de pedidos",
-    "Criar OrderService com metodo total(valores).",
+    "Merged PR 102: order service",
+    "Create OrderService with a total(values) method.",
   );
 
   await pr(
@@ -114,8 +114,8 @@ async function buildFixture(dir: string): Promise<void> {
         'import test from "node:test";\nimport assert from "node:assert";\nimport { big1 } from "./big.ts";\ntest("big", () => { assert.equal(big1, 1); });\n',
       "package-lock.json": '{"lockfileVersion":3,"churn":true}\n',
     },
-    "Merged PR 103: modulo grande de constantes",
-    "Criar src/order/big.ts exportando big1..big60.",
+    "Merged PR 103: large constants module",
+    "Create src/order/big.ts exporting big1..big60.",
   );
 }
 
@@ -127,7 +127,7 @@ async function main(): Promise<void> {
   const manifestPath = path.join(work, "manifest.json");
   const configPath = path.join(work, "bench.config.json");
 
-  console.log(bold(`\nsmoke — harness completo em ${work}`));
+  console.log(bold(`\nsmoke — full harness in ${work}`));
 
   try {
     await mkdir(fixture, { recursive: true });
@@ -140,7 +140,7 @@ async function main(): Promise<void> {
           provider: "local-git",
           root: benchRoot,
           repos: [{ name: "fixture-api", dir: fixture, defaultBranch: "main" }],
-          model: "modelo-de-mentira",
+          model: "fake-model",
           reps: 3,
           seed: 42,
           install: { enabled: false },
@@ -166,18 +166,18 @@ async function main(): Promise<void> {
       work,
     );
     const manifest = await readJson<Manifest>(manifestPath);
-    check("manifest tem 3 tarefas", manifest?.tasks.length === 3, `veio ${manifest?.tasks.length}`);
+    check("the manifest has 3 tasks", manifest?.tasks.length === 3, `got ${manifest?.tasks.length}`);
     check(
-      "estratificou por tamanho (0% e 100% presentes)",
+      "stratified by size (0% and 100% present)",
       manifest?.tasks.some((t) => t.sizePercent === 0) === true &&
         manifest?.tasks.some((t) => t.sizePercent === 100) === true,
     );
     check(
-      "lockfile ficou fora da metrica de tamanho",
+      "the lockfile stayed out of the size metric",
       manifest?.tasks.every((t) => !t.prodFiles.includes("package-lock.json")) === true,
     );
     check(
-      "grader held-out separado dos arquivos de producao",
+      "held-out grader separated from the production files",
       manifest?.tasks.every((t) => t.testFiles.length > 0 && t.prodFiles.length > 0) === true,
     );
 
@@ -187,16 +187,16 @@ async function main(): Promise<void> {
       work,
     );
     const plan = await readJson<Plan>(path.join(benchRoot, "plan.json"));
-    check("plano com 3 tarefas x 6 arms x 3 reps = 54 runs", plan?.totalRuns === 54, `veio ${plan?.totalRuns}`);
+    check("plan with 3 tasks x 6 arms x 3 reps = 54 runs", plan?.totalRuns === 54, `got ${plan?.totalRuns}`);
     check(
-      "ordem randomizada, nao agrupada por arm",
+      "randomized order, not grouped by arm",
       plan !== null && plan.entries.slice(0, 6).some((e) => e.arm !== plan.entries[0].arm),
     );
     const a3 = await readJson<{ overlay: { enforceGates: boolean; files: Record<string, string> } }>(
       path.join(benchRoot, "arms", "fixture-api", "A3.json"),
     );
-    check("A3 liga os gates deterministicos", a3?.overlay.enforceGates === true);
-    check("A3 traz steering de tech e structure", Object.keys(a3?.overlay.files ?? {}).length >= 2);
+    check("A3 turns the deterministic gates on", a3?.overlay.enforceGates === true);
+    check("A3 carries tech and structure steering", Object.keys(a3?.overlay.files ?? {}).length >= 2);
 
     console.log(bold("\n3. bench-run"));
     await sh(
@@ -204,33 +204,33 @@ async function main(): Promise<void> {
       work,
     );
     const runs = await readJsonl<RunRecord>(path.join(benchRoot, "obs", "runs.jsonl"));
-    check("gravou os 54 runs", runs.length === 54, `veio ${runs.length}`);
-    check("nenhum run quebrou no setup", runs.every((r) => r.status !== "setup-failed"));
-    check("todo run rodou o grader held-out", runs.every((r) => r.heldOutTests.ran));
-    check("agente aprovado nas tarefas que implementou", runs.some((r) => r.success));
+    check("recorded all 54 runs", runs.length === 54, `got ${runs.length}`);
+    check("no run broke during setup", runs.every((r) => r.status !== "setup-failed"));
+    check("every run executed the held-out grader", runs.every((r) => r.heldOutTests.ran));
+    check("the agent is approved on the tasks it implemented", runs.some((r) => r.success));
 
     const scope = (arm: string): number => {
       const sel = runs.filter((r) => r.arm === arm);
       return sel.reduce((acc, r) => acc + r.filesOutsideGoldenDiff.length, 0) / sel.length;
     };
     check(
-      `steering reduz escopo inventado (A0 ${scope("A0").toFixed(2)} > A2 ${scope("A2").toFixed(2)})`,
+      `steering reduces invented scope (A0 ${scope("A0").toFixed(2)} > A2 ${scope("A2").toFixed(2)})`,
       scope("A0") > scope("A2"),
     );
     check(
-      `escopo negativo zera invencao (A5 = ${scope("A5").toFixed(2)})`,
+      `negative scope zeroes invention (A5 = ${scope("A5").toFixed(2)})`,
       scope("A5") < scope("A2"),
     );
     check(
-      "arm com gates gasta turno extra quando o gate fecha vermelho",
+      "a gated arm spends an extra turn when a gate comes back red",
       runs.filter((r) => r.arm === "A3").every((r) => r.agentTurns >= 1),
     );
     check(
-      "custo capturado do stream do agente",
+      "cost captured from the agent stream",
       runs.every((r) => r.usageFromStream.totalTokens !== null),
     );
     check(
-      "runs identificados por overlay nao vazaram para filesTouched",
+      "overlay files did not leak into filesTouched",
       runs.every((r) => !r.filesTouched.some((f) => f.startsWith(".kiro/"))),
     );
 
@@ -239,34 +239,34 @@ async function main(): Promise<void> {
       `node ${repoRoot}/src/bench-run.ts --config ${configPath} --manifest ${manifestPath}`,
       work,
     );
-    check("retomada nao repete run ja gravado", resumeOut.includes("0 run(s) concluidos"));
+    check("resuming does not repeat an already recorded run", resumeOut.includes("0 run(s) completed"));
     const afterResume = await readJsonl<RunRecord>(path.join(benchRoot, "obs", "runs.jsonl"));
-    check("runs.jsonl continua com 54 linhas", afterResume.length === 54);
+    check("runs.jsonl still has 54 lines", afterResume.length === 54);
 
     console.log(bold("\n5. bench-report"));
     const reportOut = await sh(
-      `node ${repoRoot}/src/bench-report.ts --root ${benchRoot} --by-task --markdown ${work}/relatorio.md`,
+      `node ${repoRoot}/src/bench-report.ts --root ${benchRoot} --by-task --markdown ${work}/report.md`,
       work,
     );
-    check("relatorio nomeia a metrica primaria", reportOut.includes("custo por tarefa aprovada"));
+    check("the report names the primary metric", reportOut.includes("cost per approved task"));
     const report = await readJson<{
       costUnit: string;
       arms: Array<{ arm: string; costPerSuccess: number | null; pass1: number }>;
       validity: { level: string; messages: string[] };
     }>(path.join(benchRoot, "obs", "report.json"));
-    check("relatorio cobre os 6 arms", report?.arms.length === 6, `veio ${report?.arms.length}`);
+    check("the report covers all 6 arms", report?.arms.length === 6, `got ${report?.arms.length}`);
     check(
-      "custo por tarefa aprovada calculado",
+      "cost per approved task computed",
       report?.arms.some((a) => a.costPerSuccess !== null) === true,
     );
     check(
-      "checagem de validade nao acusa problema com 3 reps completas",
+      "the validity check reports no problem with 3 complete reps",
       report?.validity.level === "ok",
       (report?.validity.messages ?? []).join(" | "),
     );
   } finally {
     if (keep) {
-      console.log(dim(`\nartefatos preservados em ${work}`));
+      console.log(dim(`\nartifacts preserved at ${work}`));
     } else {
       await rm(work, { recursive: true, force: true });
     }
@@ -274,14 +274,14 @@ async function main(): Promise<void> {
 
   console.log("");
   if (failures === 0) {
-    console.log(green(bold("smoke passou: o harness esta consistente ponta a ponta.")));
+    console.log(green(bold("smoke passed: the harness is consistent end to end.")));
   } else {
-    console.log(red(bold(`smoke falhou: ${failures} verificacao(oes).`)));
+    console.log(red(bold(`smoke failed: ${failures} check(s).`)));
     process.exit(1);
   }
 }
 
 main().catch((err) => {
-  console.error(`\n${red("erro no smoke")}: ${err instanceof Error ? err.stack : String(err)}`);
+  console.error(`\n${red("smoke error")}: ${err instanceof Error ? err.stack : String(err)}`);
   process.exit(1);
 });

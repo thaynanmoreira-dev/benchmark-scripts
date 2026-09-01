@@ -15,14 +15,14 @@ export interface InstallOutcome {
 }
 
 /**
- * Instala dependencias no worktree reaproveitando um cache por hash de
- * lockfile. Com ~160 runs, instalar do zero em cada um domina o wall-clock
- * e nao muda nada no que esta sendo medido.
+ * Installs dependencies into the worktree, reusing a cache keyed by lockfile
+ * hash. Across ~160 runs, installing from scratch each time dominates the wall
+ * clock and changes nothing about what is being measured.
  *
- * symlink  node_modules do cache e ligado no worktree (rapido, default)
- * copy     copia o cache (mais lento, sobrevive a ferramenta que odeia symlink)
- * fresh    instala do zero em todo run (so para diagnosticar)
- * none     nao instala nada
+ * symlink  the cache's node_modules is linked into the worktree (fast, default)
+ * copy     copies the cache (slower, survives tools that hate symlinks)
+ * fresh    installs from scratch on every run (diagnostics only)
+ * none     installs nothing
  */
 export async function installDeps(
   worktree: string,
@@ -60,10 +60,10 @@ export async function installDeps(
 
   const res: CommandResult = await runCommand(installCmd, { cwd: worktree, timeoutMs });
   if (!res.ok) {
-    return done(false, false, `${installCmd} falhou (exit ${res.exitCode}): ${res.output.slice(-400)}`);
+    return done(false, false, `${installCmd} failed (exit ${res.exitCode}): ${res.output.slice(-400)}`);
   }
 
-  // primeira instalacao alimenta o cache para os proximos runs
+  // the first install seeds the cache for the runs that follow
   if (strategy !== "fresh" && cacheDir && existsSync(target)) {
     try {
       await mkdir(path.dirname(cacheDir), { recursive: true });
@@ -71,7 +71,7 @@ export async function installDeps(
       await symlink(cacheDir, target, "dir");
       return done(true, false, `instalado e cacheado em ${cacheDir}`);
     } catch {
-      // rename entre dispositivos diferentes: segue sem cache
+      // rename across devices: carry on without the cache
       return done(true, false, `instalado (cache indisponivel)`);
     }
   }

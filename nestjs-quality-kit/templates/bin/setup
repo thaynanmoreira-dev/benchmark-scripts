@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+#
+# From nothing to running, on a clean machine, with no manual step.
+#
+# If a project's onboarding lives in undocumented steps, the agent loses the
+# ability to validate what it wrote — and you lose an afternoon explaining.
+# Running this twice has to produce the same result.
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+echo "==> Node version"
+node --version
+if [ -f .nvmrc ] && command -v nvm >/dev/null 2>&1; then nvm use; fi
+
+echo "==> dependencies"
+if [ -f package-lock.json ]; then npm ci; else npm install; fi
+
+echo "==> environment variables"
+if [ -f .env.example ] && [ ! -f .env ]; then
+  cp .env.example .env
+  echo "    .env created from the example — review it before starting the service"
+fi
+
+# Backing services. Uncomment what this project actually uses.
+# echo "==> Postgres, Redis and friends"
+# docker compose up -d --wait
+
+echo "==> verification"
+npm run gates:fast
+
+echo
+echo "ready. Commands:"
+echo "  npm run gates:fast   seconds, on every change"
+echo "  npm run gates        adds mutation testing, before handing back"

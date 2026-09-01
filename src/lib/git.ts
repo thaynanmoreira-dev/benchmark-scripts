@@ -9,8 +9,8 @@ import { matchesAny, isTestFile } from "./glob.ts";
 const exec = promisify(execFile);
 
 /**
- * Um repositorio git endereçavel. Bare (mirror) ou com working tree.
- * Todo o harness fala com git atraves deste tipo, nunca com cwd implicito.
+ * An addressable git repository: bare (a mirror) or with a working tree.
+ * The whole harness talks to git through this type, never through an implicit cwd.
  */
 export interface GitRepo {
   dir: string;
@@ -36,7 +36,7 @@ export async function git(repo: GitRepo, args: string[]): Promise<string> {
   return stdout;
 }
 
-/** Variante que nao lanca. Util quando "falhou" e uma resposta valida. */
+/** Non-throwing variant. Useful when "it failed" is a valid answer. */
 export async function gitTry(repo: GitRepo, args: string[]): Promise<string | null> {
   try {
     return await git(repo, args);
@@ -45,15 +45,15 @@ export async function gitTry(repo: GitRepo, args: string[]): Promise<string | nu
   }
 }
 
-// ─────────────────────────────────────────────────────── commits e refs
+// ─────────────────────────────────────────────────────── commits and refs
 
 export async function commitExists(repo: GitRepo, sha: string): Promise<boolean> {
   return (await gitTry(repo, ["cat-file", "-e", `${sha}^{commit}`])) !== null;
 }
 
 /**
- * Garante o commit no object store. Tenta o sha direto e depois as refs que o
- * provider sugeriu (PR de fork nao tem o sha alcancavel por nenhum branch).
+ * Ensures the commit is in the object store. Tries the sha directly, then the
+ * refs the provider suggested (a fork PR has no sha reachable from any branch).
  */
 export async function ensureCommit(
   repo: GitRepo,
@@ -81,7 +81,7 @@ export async function revParse(repo: GitRepo, ref: string): Promise<string | nul
   return out?.trim() || null;
 }
 
-/** Resolve o branch default do remoto, caindo para main/master. */
+/** Resolves the remote's default branch, falling back to main/master. */
 export async function resolveDefaultBranch(repo: GitRepo, hint?: string): Promise<string> {
   const candidates = [hint, "origin/HEAD", "main", "master", "origin/main", "origin/master"];
   for (const c of candidates) {
@@ -97,7 +97,7 @@ async function symbolicDefault(repo: GitRepo): Promise<string | null> {
   return out?.trim().replace(/^origin\//, "") || null;
 }
 
-/** Conteudo de um arquivo num commit. null se o path nao existe la. */
+/** A file's contents at a commit. null when the path does not exist there. */
 export async function showFile(
   repo: GitRepo,
   sha: string,
@@ -106,9 +106,9 @@ export async function showFile(
   return await gitTry(repo, ["show", `${sha}:${filePath}`]);
 }
 
-// ─────────────────────────────────────────────────────── mirrors e worktrees
+// ─────────────────────────────────────────────────────── mirrors and worktrees
 
-/** Clona (ou atualiza) um mirror bare. Worktrees de run saem daqui. */
+/** Clones (or updates) a bare mirror. Run worktrees come from here. */
 export async function ensureMirror(
   mirrorDir: string,
   remoteUrl: string,
@@ -126,7 +126,7 @@ export async function ensureMirror(
   return repo;
 }
 
-/** Worktree detached num commit. Remove um worktree anterior no mesmo path. */
+/** A detached worktree at a commit. Removes any previous worktree at that path. */
 export async function addWorktree(
   mirror: GitRepo,
   target: string,
@@ -155,7 +155,7 @@ export interface FileStat {
   excluded: boolean;
 }
 
-/** Normaliza rename do numstat: "old => new" e "src/{a => b}/f.ts". */
+/** Normalises a numstat rename: "old => new" and "src/{a => b}/f.ts". */
 export function normalizeRenamePath(raw: string): string {
   if (!raw.includes("=>")) return raw;
   const braced = raw.replace(/\{[^}]*=>\s*([^}]*)\}/g, "$1").replace(/\/\//g, "/");
@@ -195,8 +195,8 @@ export async function numstat(
 }
 
 /**
- * Arquivos alterados no working tree, incluindo untracked.
- * Esta e a medida de escopo: o que o agente tocou de fato.
+ * Files changed in the working tree, untracked ones included.
+ * This is the scope measurement: what the agent actually touched.
  */
 export async function touchedFiles(repo: GitRepo): Promise<string[]> {
   const out = await git(repo, ["status", "--porcelain=v1", "--untracked-files=all"]);
@@ -204,7 +204,7 @@ export async function touchedFiles(repo: GitRepo): Promise<string[]> {
   for (const line of out.split("\n")) {
     if (!line.trim()) continue;
     const payload = line.slice(3);
-    // rename aparece como "old -> new"; o que importa e o destino
+    // a rename shows up as "old -> new"; the destination is what matters
     const parts = payload.split(" -> ");
     const raw = (parts[parts.length - 1] ?? "").trim();
     const unquoted = raw.startsWith('"') && raw.endsWith('"') ? raw.slice(1, -1) : raw;
@@ -213,7 +213,7 @@ export async function touchedFiles(repo: GitRepo): Promise<string[]> {
   return [...files].sort();
 }
 
-/** Restaura paths a partir de um commit. Usado para plantar o grader. */
+/** Restores paths from a commit. Used to plant the grader. */
 export async function checkoutPaths(
   repo: GitRepo,
   sha: string,

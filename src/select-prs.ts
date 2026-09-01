@@ -2,23 +2,23 @@
 /**
  * select-prs.ts
  *
- * Monta o golden dataset: PRs ja mergeadas, estratificadas por tamanho de
- * alteracao. O menor PR do corpus vira 0%, o maior vira 100%, e o script
- * escolhe os PRs mais proximos das porcentagens-alvo pedidas.
+ * Builds the golden dataset: already-merged PRs, stratified by change size.
+ * The smallest PR in the corpus becomes 0%, the largest becomes 100%, and the
+ * script picks the PRs closest to the requested target percentages.
  *
- * Funciona com qualquer repositorio:
- *   local-git     nao precisa de API nem token. Le merges do proprio historico.
- *   github        GITHUB_TOKEN opcional para repo publico.
- *   azure-devops  AZDO_PAT obrigatorio.
+ * Works with any repository:
+ *   local-git     needs no API and no token. Reads merges from the history itself.
+ *   github        GITHUB_TOKEN optional for a public repository.
+ *   azure-devops  AZDO_PAT required.
  *
- * Saida: manifest.json com base commit para o worktree, descricao da task e a
- * lista de arquivos de teste held-out que serao o grader.
+ * Output: manifest.json with the base commit for the worktree, the task
+ * description and the list of held-out test files that act as the grader.
  *
- * Uso:
+ * Usage:
  *   node src/select-prs.ts --config bench.config.json --targets 0,25,50,75,100
- *   node src/select-prs.ts --provider local-git --repo-dir ./meu-repo --name api
+ *   node src/select-prs.ts --provider local-git --repo-dir ./my-repo --name api
  *
- * Sem dependencias externas. Node >= 22.6.
+ * No external dependencies. Node >= 22.6.
  */
 
 import path from "node:path";
@@ -120,11 +120,11 @@ function parseOptions(argv: string[]): Options {
 
 const CONFIG_EXAMPLE = {
   provider: "local-git",
-  org: "minha-org",
-  project: "meu-projeto",
+  org: "my-org",
+  project: "my-project",
   repos: [
-    { name: "servico-exemplo", dir: "./repos/servico-exemplo" },
-    { name: "outro-servico", remoteUrl: "https://github.com/minha-org/outro-servico.git" },
+    { name: "example-service", dir: "./repos/example-service" },
+    { name: "other-service", remoteUrl: "https://github.com/my-org/other-service.git" },
   ],
 };
 
@@ -142,10 +142,10 @@ async function loadConfig(opts: Options): Promise<BenchConfig> {
   const cfg = await readJson<BenchConfig>(opts.config);
   if (!cfg) {
     throw new Error(
-      `Config nao encontrado: ${opts.config}\n\n` +
-        `Crie um JSON assim:\n${JSON.stringify(CONFIG_EXAMPLE, null, 2)}\n\n` +
-        `Ou aponte um clone direto:\n` +
-        `  node src/select-prs.ts --repo-dir ./meu-repo --name meu-repo`,
+      `Config not found: ${opts.config}\n\n` +
+        `Create a JSON like this:\n${JSON.stringify(CONFIG_EXAMPLE, null, 2)}\n\n` +
+        `Or point at a clone directly:\n` +
+        `  node src/select-prs.ts --repo-dir ./my-repo --name my-repo`,
     );
   }
   if (opts.provider) cfg.provider = opts.provider;
@@ -154,15 +154,15 @@ async function loadConfig(opts: Options): Promise<BenchConfig> {
   if (opts.repoFilter.length) {
     cfg.repos = cfg.repos.filter((r) => opts.repoFilter.includes(r.name));
     if (cfg.repos.length === 0) {
-      throw new Error(`Nenhum repo da config bate com --repos ${opts.repoFilter.join(",")}`);
+      throw new Error(`No repository in the config matches --repos ${opts.repoFilter.join(",")}`);
     }
   }
   return cfg;
 }
 
 /**
- * Um clone local existente e usado como esta. Caso contrario materializa um
- * mirror bare em <root>/mirrors, que e o mesmo que o runner usa depois.
+ * An existing local clone is used as is. Otherwise it materializes a bare
+ * mirror in <root>/mirrors, the same one the runner uses later.
  */
 export async function resolveRepoGit(
   root: string,
@@ -184,15 +184,15 @@ export async function resolveRepoGit(
     provider.remoteUrl({ repoName: repo.name, git: bareRepo(mirrorDir), org: cfg.org, project: cfg.project });
   if (!url) {
     throw new Error(
-      `Sem clone para ${repo.name}: informe "dir" (clone local) ou "remoteUrl" na config.`,
+      `No clone for ${repo.name}: set "dir" (local clone) or "remoteUrl" in the config.`,
     );
   }
-  if (noFetch) throw new Error(`--no-fetch, mas ${repo.name} nao tem clone em ${mirrorDir}`);
-  info(`${repo.name}: clonando mirror de ${url}`);
+  if (noFetch) throw new Error(`--no-fetch, but ${repo.name} has no clone at ${mirrorDir}`);
+  info(`${repo.name}: cloning mirror from ${url}`);
   return await ensureMirror(mirrorDir, url, false);
 }
 
-// ─────────────────────────────────────────────────────── medicao
+// ─────────────────────────────────────────────────────── measurement
 
 async function measurePr(
   repoName: string,
@@ -203,7 +203,7 @@ async function measurePr(
   if (!(await ensureCommit(git, pr.headCommit, pr.fetchRefs))) return null;
   if (!(await ensureCommit(git, pr.targetCommit, pr.fetchRefs))) return null;
 
-  // merge-base e a base real do diff; cai para o commit alvo se nao houver
+  // merge-base is the real diff base; falls back to the target commit if absent
   const base = (await mergeBase(git, pr.targetCommit, pr.headCommit)) ?? pr.targetCommit;
 
   let stats;
@@ -250,7 +250,7 @@ async function collect(cfg: BenchConfig, opts: Options): Promise<MeasuredPr[]> {
   if (!opts.refresh && existsSync(opts.cache)) {
     const cached = await readJson<MeasuredPr[]>(opts.cache);
     if (cached?.length) {
-      info(`cache: ${cached.length} PRs de ${opts.cache} ${dim("(--refresh para refazer)")}`);
+      info(`cache: ${cached.length} PRs from ${opts.cache} ${dim("(--refresh to redo it)")}`);
       return cached;
     }
   }
@@ -271,7 +271,7 @@ async function collect(cfg: BenchConfig, opts: Options): Promise<MeasuredPr[]> {
       remoteUrl: repo.remoteUrl,
     });
     if (missing.length) {
-      warn(`${repo.name}: provider ${providerName} nao esta pronto — falta ${missing.join("; ")}`);
+      warn(`${repo.name}: provider ${providerName} is not ready — missing ${missing.join("; ")}`);
       continue;
     }
 
@@ -306,7 +306,7 @@ async function collect(cfg: BenchConfig, opts: Options): Promise<MeasuredPr[]> {
   }
 
   await writeJson(opts.cache, measured);
-  info(`cache salvo em ${opts.cache}`);
+  info(`cache saved at ${opts.cache}`);
   return measured;
 }
 
@@ -335,7 +335,7 @@ function score(prs: MeasuredPr[], opts: Options): ScoredPr[] {
   const span = hi - lo;
 
   if (span <= 0) {
-    warn("Todos os PRs tem o mesmo tamanho sob esta metrica. sizePercent = 0 para todos.");
+    warn("All PRs have the same size under this metric. sizePercent = 0 for all of them.");
   }
 
   return prs.map((pr, i) => {
@@ -350,7 +350,7 @@ function score(prs: MeasuredPr[], opts: Options): ScoredPr[] {
   });
 }
 
-/** Alerta quando min/max puro esta sendo dominado por outlier. */
+/** Warns when a raw min/max is being dominated by an outlier. */
 function warnOnSkew(scored: ScoredPr[], opts: Options): void {
   if (opts.clampLow !== 0 || opts.clampHigh !== 100 || opts.scale === "log") return;
   const sorted = scored.map((p) => p.rawMetric).sort((a, b) => a - b);
@@ -359,15 +359,15 @@ function warnOnSkew(scored: ScoredPr[], opts: Options): void {
   const median = percentile(sorted, 50);
   if (p95 > 0 && max / p95 > 4) {
     warn(
-      `Distribuicao enviesada: maior PR = ${fmt(max)}, p95 = ${fmt(Math.round(p95))}, ` +
-        `mediana = ${fmt(Math.round(median))}.\n` +
-        `   O outlier esta definindo o 100% e comprimindo o resto perto de 0%.\n` +
-        `   Considere:  --clamp 5:95   ou   --scale log`,
+      `Skewed distribution: largest PR = ${fmt(max)}, p95 = ${fmt(Math.round(p95))}, ` +
+        `median = ${fmt(Math.round(median))}.\n` +
+        `   The outlier is defining 100% and squeezing the rest near 0%.\n` +
+        `   Consider:  --clamp 5:95   or   --scale log`,
     );
   }
 }
 
-// ─────────────────────────────────────────────────────── selecao
+// ─────────────────────────────────────────────────────── selection
 
 function select(scored: ScoredPr[], opts: Options): SelectedPr[] {
   const pool = [...scored];
@@ -393,39 +393,39 @@ function select(scored: ScoredPr[], opts: Options): SelectedPr[] {
   return chosen.sort((a, b) => a.bucket - b.bucket || a.sizePercent - b.sizePercent);
 }
 
-// ─────────────────────────────────────────────────────── relatorio
+// ─────────────────────────────────────────────────────── report
 
 function report(scored: ScoredPr[], selected: SelectedPr[], opts: Options): void {
   const sorted = scored.map((p) => p.rawMetric).sort((a, b) => a - b);
 
   rule("corpus");
-  info(`PRs elegiveis:  ${scored.length}`);
-  info(`Metrica:        ${opts.metric} (escala ${opts.scale})`);
+  info(`eligible PRs:   ${scored.length}`);
+  info(`Metric:         ${opts.metric} (${opts.scale} scale)`);
   info(`Clamp:          p${opts.clampLow} .. p${opts.clampHigh}`);
   info(
-    `Distribuicao:   min ${fmt(sorted[0] ?? 0)} | ` +
+    `Distribution:   min ${fmt(sorted[0] ?? 0)} | ` +
       `p25 ${fmt(Math.round(percentile(sorted, 25)))} | ` +
       `p50 ${fmt(Math.round(percentile(sorted, 50)))} | ` +
       `p75 ${fmt(Math.round(percentile(sorted, 75)))} | ` +
       `max ${fmt(sorted[sorted.length - 1] ?? 0)}`,
   );
 
-  rule("selecionados");
+  rule("selected");
   table(
     [
-      { header: "alvo", width: 5, align: "right" },
-      { header: "real", width: 7, align: "right" },
+      { header: "target", width: 7, align: "right" },
+      { header: "actual", width: 7, align: "right" },
       { header: opts.metric, width: 10, align: "right" },
-      { header: "arq", width: 4, align: "right" },
+      { header: "files", width: 5, align: "right" },
       { header: "tst", width: 3 },
-      { header: "tarefa", width: 60 },
+      { header: "task", width: 60 },
     ],
     selected.map((pr) => [
       `${pr.bucket}%`,
       `${pr.sizePercent}%`,
       fmt(pr.rawMetric),
       String(pr.metrics.files),
-      pr.metrics.hasTests ? "sim" : "-",
+      pr.metrics.hasTests ? "yes" : "-",
       `${pr.id} ${pr.title.slice(0, 44)}`,
     ]),
   );
@@ -434,14 +434,14 @@ function report(scored: ScoredPr[], selected: SelectedPr[], opts: Options): void
 // ─────────────────────────────────────────────────────── extra tasks
 
 /**
- * Tarefas escritas a mao, anexadas ao manifest. E aqui que entra a isca de
- * escopo: um requisito propositalmente vago, para medir invencao de feature.
+ * Hand-written tasks, appended to the manifest. This is where the scope bait
+ * goes: a deliberately vague requirement, to measure invented features.
  */
 async function loadExtraTasks(file: string | undefined): Promise<SelectedPr[]> {
   if (!file) return [];
   const raw = await readJson<{ tasks: Array<Partial<SelectedPr>> }>(file);
   if (!raw?.tasks?.length) {
-    warn(`--extra-tasks ${file}: nenhum item em "tasks"`);
+    warn(`--extra-tasks ${file}: no item in "tasks"`);
     return [];
   }
   return raw.tasks.map((t, i) => {
@@ -484,39 +484,39 @@ async function loadExtraTasks(file: string | undefined): Promise<SelectedPr[]> {
 // ─────────────────────────────────────────────────────── main
 
 const USAGE = `
-select-prs — monta o golden dataset a partir de PRs ja mergeadas
+select-prs — builds the golden dataset from already-merged PRs
 
-  node src/select-prs.ts [opcoes]
+  node src/select-prs.ts [options]
 
-fonte
-  --config <arquivo>        config do benchmark            (bench.config.json)
-  --repo-dir <caminho>      atalho: um clone local, sem config
-  --name <nome>             nome do repo quando usar --repo-dir
-  --provider <nome>         local-git | github | azure-devops
-  --org / --project         sobrescrevem a config
-  --repos a,b               so estes repos da config
-  --target-branch <ref>     branch alvo dos PRs            (default do repo)
-  --since <ISO>             so PRs fechadas depois disso
-  --max-prs-per-repo <n>    teto de PRs buscadas           (200)
-  --no-fetch                proibe clonar; exige clone local
+source
+  --config <file>           benchmark config               (bench.config.json)
+  --repo-dir <path>         shortcut: one local clone, no config
+  --name <name>             repository name when using --repo-dir
+  --provider <name>         local-git | github | azure-devops
+  --org / --project         override the config
+  --repos a,b               only these repositories from the config
+  --target-branch <ref>     target branch of the PRs       (repo default)
+  --since <ISO>             only PRs closed after this
+  --max-prs-per-repo <n>    cap on PRs fetched             (200)
+  --no-fetch                forbid cloning; require a local clone
 
-tamanho e selecao
-  --targets 0,25,50,75,100  porcentagens-alvo de tamanho
-  --per-bucket <n>          PRs por alvo                   (1)
+size and selection
+  --targets 0,25,50,75,100  target size percentages
+  --per-bucket <n>          PRs per target                 (1)
   --metric <m>              churn | prod-churn | additions | files
-  --scale linear|log        log para churn de cauda pesada
-  --clamp lo:hi             percentis que definem 0% e 100%  (0:100)
-  --min-files / --max-files filtro por numero de arquivos   (1 / 200)
-  --require-tests           so PRs com teste (grader held-out)
-  --exclude a,b             globs extras fora da metrica
+  --scale linear|log        log for heavy-tailed churn
+  --clamp lo:hi             percentiles defining 0% and 100%  (0:100)
+  --min-files / --max-files filter by file count            (1 / 200)
+  --require-tests           only PRs with tests (held-out grader)
+  --exclude a,b             extra globs kept out of the metric
 
-saida
-  --extra-tasks <arquivo>   anexa tarefas manuais (isca de escopo)
-  --cache <arquivo>         cache das medicoes             (.pr-cache.json)
-  --refresh                 refaz a medicao ignorando o cache
-  --out <arquivo>           manifest de saida              (manifest.json)
+output
+  --extra-tasks <file>      append manual tasks (scope bait)
+  --cache <file>            measurement cache              (.pr-cache.json)
+  --refresh                 redo the measurement, ignoring the cache
+  --out <file>              output manifest                (manifest.json)
 
-variaveis: AZDO_PAT, GITHUB_TOKEN, PR_MODE=merges|commits
+variables: AZDO_PAT, GITHUB_TOKEN, PR_MODE=merges|commits
 `;
 
 async function main(): Promise<void> {
@@ -527,7 +527,7 @@ async function main(): Promise<void> {
   const opts = parseOptions(process.argv.slice(2));
   const cfg = await loadConfig(opts);
 
-  console.log(bold("\nselect-prs — montando o golden dataset"));
+  console.log(bold("\nselect-prs — building the golden dataset"));
   const measured = await collect(cfg, opts);
 
   const eligible = measured.filter((p) => {
@@ -540,8 +540,8 @@ async function main(): Promise<void> {
 
   if (eligible.length === 0) {
     throw new Error(
-      `Nenhum PR passou nos filtros (${measured.length} medidos).\n` +
-        `   Afrouxe --min-files / --max-files / --require-tests, ou aumente --max-prs-per-repo.`,
+      `No PR passed the filters (${measured.length} measured).\n` +
+        `   Loosen --min-files / --max-files / --require-tests, or raise --max-prs-per-repo.`,
     );
   }
 
@@ -552,7 +552,7 @@ async function main(): Promise<void> {
   report(scored, selected, opts);
 
   const extra = await loadExtraTasks(opts.extraTasks);
-  if (extra.length) info(`+ ${extra.length} tarefa(s) manual(is) de ${opts.extraTasks}`);
+  if (extra.length) info(`+ ${extra.length} manual task(s) from ${opts.extraTasks}`);
 
   const providerName = detectProvider(cfg.provider, cfg.repos[0] ?? { name: "" }, cfg.org, cfg.project);
   const manifest: Manifest = {
@@ -576,13 +576,13 @@ async function main(): Promise<void> {
   await writeJson(opts.out, manifest);
 
   console.log("");
-  ok(`${manifest.tasks.length} tarefas escritas em ${opts.out}`);
+  ok(`${manifest.tasks.length} tasks written to ${opts.out}`);
 
-  const semTeste = selected.filter((p) => !p.metrics.hasTests);
-  if (semTeste.length) {
+  const untested = selected.filter((p) => !p.metrics.hasTests);
+  if (untested.length) {
     warn(
-      `${semTeste.length} tarefa(s) sem arquivo de teste nao servem como grader held-out ` +
-        `(${semTeste.map((p) => p.id).join(", ")}). Rode com --require-tests.`,
+      `${untested.length} task(s) with no test file cannot serve as a held-out grader ` +
+        `(${untested.map((p) => p.id).join(", ")}). Run with --require-tests.`,
     );
   }
 }

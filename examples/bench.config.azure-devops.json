@@ -1,14 +1,14 @@
 {
   "provider": "azure-devops",
-  "org": "minha-org",
-  "project": "meu-projeto",
+  "org": "my-org",
+  "project": "my-project",
   "repos": [
     { "name": "servico-exemplo", "defaultBranch": "main" },
-    { "name": "outro-servico", "defaultBranch": "main" },
+    { "name": "other-service", "defaultBranch": "main" },
     { "name": "terceiro-servico", "defaultBranch": "main" }
   ],
   "root": ".bench",
-  "model": "TRAVE UM MODELO AQUI",
+  "model": "PIN A MODEL HERE",
   "reps": 3,
   "seed": 42,
   "baselineStripsExistingConfig": true,

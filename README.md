@@ -114,7 +114,7 @@ node src/bench-init.ts --config bench.config.json
 Materializa os mirrors, perfila cada repositório, gera os arms **por repositório**,
 monta a observabilidade e emite o plano em ordem randomizada com seed.
 
-**Pare aqui e preencha `.bench/obs/PRE-REGISTRO.md`.** O critério de adoção escrito
+**Pare aqui e preencha `.bench/obs/PRE-REGISTRATION.md`.** O critério de adoção escrito
 antes de ver qualquer número é o que impede você de escolher, depois, o resultado que
 já queria.
 
@@ -241,7 +241,7 @@ O `bench-report` roda as checagens que decidem se o benchmark concluiu alguma co
 
 Uma tarefa com requisito propositalmente vago, sem golden diff e sem teste held-out.
 Ela nunca é aprovada — o que ela mede é `filesOutsideGoldenDiff`, ou seja, quanto o
-agente inventa quando o pedido deixa espaço. Veja `examples/tasks.isca-de-escopo.json`
+agente inventa quando o pedido deixa espaço. Veja `examples/tasks.scope-bait.json`
 e anexe com `--extra-tasks`.
 
 ---
@@ -312,8 +312,8 @@ inteiro contra um CLI de verdade — inclusive a passada semântica, o adapter e
 contabilidade de uso, que é onde os problemas de integração aparecem:
 
 ```bash
-bash test/exemplo-real/rodar.sh
-ARMS=A0,A2,A5 REPS=2 AGENT_CMD=kiro-cli bash test/exemplo-real/rodar.sh
+bash test/real-example/run.sh
+ARMS=A0,A2,A5 REPS=2 AGENT_CMD=kiro-cli bash test/real-example/run.sh
 ```
 
 Ele monta um serviço de pagamentos em Node/TypeScript com três PRs mergeadas de
@@ -350,14 +350,14 @@ src/
     stats.ts           percentil, Wilson, PRNG com seed
 examples/
   bench.config.*.json    configs por provider
-  tasks.isca-*.json      isca de escopo
-kit-qualidade-nestjs/  pacote autônomo, independente do harness: steering
+  tasks.scope-bait.json  isca de escopo
+nestjs-quality-kit/     pacote autônomo, independente do harness: steering
                        para agentes e gates de qualidade para serviços NestJS.
                        Ver o README de lá.
 test/
   unit.ts              testes de unidade do parsing e da estatistica
   smoke.ts             harness ponta a ponta com agente falso, sem crédito
-  exemplo-real/        repositório realista + execução com agente de verdade
+  real-example/        repositório realista + execução com agente de verdade
 ```
 
 Saída de trabalho, toda em `.bench/` e fora do git:

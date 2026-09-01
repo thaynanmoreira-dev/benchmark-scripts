@@ -18,7 +18,7 @@ interface RawPr {
 
 function authHeader(): Record<string, string> {
   const pat = process.env.AZDO_PAT ?? process.env.AZURE_DEVOPS_PAT;
-  if (!pat) throw new Error("AZDO_PAT nao definido.");
+  if (!pat) throw new Error("AZDO_PAT is not set.");
   return { Authorization: `Basic ${Buffer.from(`:${pat}`).toString("base64")}` };
 }
 
@@ -35,10 +35,10 @@ export const azureDevOps: PrProvider = {
   missingRequirements(ctx) {
     const missing: string[] = [];
     if (!process.env.AZDO_PAT && !process.env.AZURE_DEVOPS_PAT) {
-      missing.push("variavel AZDO_PAT (personal access token com escopo Code: Read)");
+      missing.push("AZDO_PAT variable (personal access token with Code: Read scope)");
     }
-    if (!ctx.org) missing.push('campo "org" na config');
-    if (!ctx.project) missing.push('campo "project" na config');
+    if (!ctx.org) missing.push('"org" field in the config');
+    if (!ctx.project) missing.push('"project" field in the config');
     return missing;
   },
 

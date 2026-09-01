@@ -1,32 +1,32 @@
 /**
- * Tipos compartilhados por todo o harness.
+ * Types shared across the whole harness.
  *
- * Regra: qualquer coisa que atravesse a fronteira entre dois scripts
- * (manifest.json, projects/*.json, arms/*.json, plan.json, runs.jsonl)
- * é declarada aqui. Se um tipo vive dentro de um único script, ele fica lá.
+ * Rule: anything that crosses the boundary between two scripts
+ * (manifest.json, projects/*.json, arms/*.json, plan.json, runs.jsonl) is
+ * declared here. A type that lives inside a single script stays there.
  */
 
 // ───────────────────────────────────────────────────────── providers
 
 export type ProviderName = "azure-devops" | "github" | "local-git";
 
-/** Um PR já mergeado, normalizado entre providers. */
+/** A merged PR, normalised across providers. */
 export interface PullRequestRef {
-  /** Número/id do PR no provider. Para local-git, um contador estável. */
+  /** The PR number/id in the provider. For local-git, a stable counter. */
   id: number;
   title: string;
   description: string;
   targetBranch: string;
-  /** Ponta do branch de origem — o "depois". */
+  /** Tip of the source branch — the "after". */
   headCommit: string;
-  /** Ponta do branch alvo no momento do merge — base do merge-base. */
+  /** Tip of the target branch at merge time — the merge-base input. */
   targetCommit: string;
-  /** Commit de merge, quando existir. */
+  /** The merge commit, when there is one. */
   mergeCommit: string | null;
   closedDate: string | null;
   isDraft: boolean;
   url: string | null;
-  /** Refs extras para tentar no fetch quando o sha não está no clone. */
+  /** Extra refs to try when fetching a sha the clone does not have. */
   fetchRefs: string[];
 }
 
@@ -39,61 +39,61 @@ export interface ListPrsOptions {
 // ───────────────────────────────────────────────────────── config
 
 export interface RepoSpec {
-  /** Nome curto. Vira chave em todo lugar (perfil, arms, taskId). */
+  /** Short name. Becomes the key everywhere (profile, arms, taskId). */
   name: string;
-  /** URL de clone. Se ausente, é derivada do provider + org/project. */
+  /** Clone URL. When absent it is derived from provider + org/project. */
   remoteUrl?: string;
-  /** Clone local já existente. Se presente, nada é clonado. */
+  /** An existing local clone. When present, nothing is cloned. */
   dir?: string;
-  /** Branch principal. Default: main. */
+  /** Main branch. Default: main. */
   defaultBranch?: string;
-  /** Override do provider só para este repo. */
+  /** Provider override for this repo only. */
   provider?: ProviderName;
 }
 
 export interface AgentConfig {
-  /** Executável do CLI do agente. Ex: kiro-cli, kiro, claude. */
+  /** The agent CLI executable. For example: kiro-cli, kiro, claude. */
   cmd: string;
-  /** Args fixos, aplicados em toda invocação. */
+  /** Fixed args, applied on every invocation. */
   args: string[];
-  /** Como o prompt chega no CLI. */
+  /** How the prompt reaches the CLI. */
   promptMode: "stdin" | "arg";
-  /** Flag usada quando promptMode = "arg". Vazio = prompt posicional. */
+  /** Flag used when promptMode = "arg". Empty means a positional prompt. */
   promptFlag?: string;
-  /** Flag do modelo. O valor vem de BenchConfig.model. */
+  /** Model flag. The value comes from BenchConfig.model. */
   modelFlag?: string;
-  /** Args extras por modo de operação do agente. */
+  /** Extra args per agent operating mode. */
   modeArgs?: { vibe?: string[]; spec?: string[] };
   env?: Record<string, string>;
   timeoutMs?: number;
 }
 
 export interface BenchConfig {
-  /** Default do provider para todos os repos. */
+  /** Default provider for every repo. */
   provider?: ProviderName;
-  /** Azure DevOps: organização. GitHub: owner (user ou org). */
+  /** Azure DevOps: the organisation. GitHub: the owner (user or org). */
   org?: string;
-  /** Azure DevOps: projeto. Ignorado nos demais. */
+  /** Azure DevOps: the project. Ignored elsewhere. */
   project?: string;
   repos: RepoSpec[];
-  /** Raiz de trabalho. Default: .bench */
+  /** Working root. Default: .bench */
   root?: string;
-  /** Adapter do CLI do agente. `kiro` é aceito como alias legado. */
+  /** The agent CLI adapter. `kiro` is accepted as a legacy alias. */
   agent?: AgentConfig;
   kiro?: AgentConfig;
-  /** Modelo travado para todo o benchmark. */
+  /** Model pinned for the whole benchmark. */
   model?: string;
-  /** Repetições por (arm × tarefa). */
+  /** Repetitions per (arm × task). */
   reps?: number;
-  /** Semente do shuffle. */
+  /** Shuffle seed. */
   seed?: number;
-  /** Arms de baseline apagam .kiro/ pré-existente. Default: true. */
+  /** Baseline arms delete any pre-existing .kiro/. Default: true. */
   baselineStripsExistingConfig?: boolean;
-  /** Turnos de reparo quando o arm tem enforceGates. Default: 2. */
+  /** Repair turns when the arm has enforceGates. Default: 2. */
   maxGateRetries?: number;
-  /** Instalação de dependências no worktree. */
+  /** Dependency installation inside the worktree. */
   install?: { enabled?: boolean; timeoutMs?: number };
-  /** Timeout dos comandos de gate/teste. Default: 600000. */
+  /** Timeout for gate and test commands. Default: 600000. */
   gateTimeoutMs?: number;
 }
 
@@ -121,14 +121,14 @@ export interface MeasuredPr {
   description: string;
   url: string | null;
   targetBranch: string;
-  /** merge-base real: o worktree do run nasce aqui. */
+  /** The real merge-base: the run's worktree starts here. */
   baseCommit: string;
   headCommit: string;
   mergeCommit: string | null;
   closedDate: string | null;
   metrics: TaskMetrics;
   prodFiles: string[];
-  /** Grader held-out. Materializado só na avaliação. */
+  /** Held-out grader. Materialised only at evaluation time. */
   testFiles: string[];
 }
 
@@ -151,7 +151,7 @@ export interface Manifest {
   tasks: SelectedPr[];
 }
 
-// ───────────────────────────────────────────────────────── perfil (bench-init)
+// ───────────────────────────────────────────────────────── profile (bench-init)
 
 export type Ecosystem = "node" | "python" | "go" | "dotnet" | "java" | "unknown";
 
@@ -170,7 +170,7 @@ export interface StackProbe {
   commands: {
     install: string | null;
     test: string | null;
-    /** Template com {files} — testes escopados ao grader held-out. */
+    /** Template holding {files} — tests scoped to the held-out grader. */
     testFile: string | null;
     lint: string | null;
     typecheck: string | null;
@@ -182,7 +182,7 @@ export interface StackProbe {
   hasDependencyCruiser: boolean;
   ci: string[];
   srcTree: string[];
-  /** Configuração de agente já versionada no repo. Contamina o baseline. */
+  /** Agent configuration already committed to the repo. It taints the baseline. */
   existingKiro: { steering: string[]; hooks: string[]; mcp: boolean; agentsMd: boolean };
 }
 
@@ -200,7 +200,7 @@ export interface SemanticProfile {
 export interface ProjectProfile {
   repo: string;
   generatedAt: string;
-  /** Repositório git bare de onde saem os worktrees. */
+  /** The bare git repository the worktrees come from. */
   mirrorPath: string;
   probe: StackProbe;
   semantic: SemanticProfile;
@@ -210,13 +210,13 @@ export interface ProjectProfile {
 // ───────────────────────────────────────────────────────── arms
 
 export interface ArmOverlay {
-  /** Arquivos materializados no worktree antes do run. */
+  /** Files materialised in the worktree before the run. */
   files: Record<string, string>;
-  /** Caminhos apagados do worktree antes do run (ex: .kiro pré-existente). */
+  /** Paths deleted from the worktree before the run (a pre-existing .kiro, say). */
   remove: string[];
-  /** Args extras passados ao CLI do agente. */
+  /** Extra args passed to the agent CLI. */
   extraArgs: string[];
-  /** Loop de reparo obrigatório com lint/typecheck/arch. */
+  /** Mandatory repair loop driven by lint/typecheck/arch. */
   enforceGates: boolean;
 }
 
@@ -229,7 +229,7 @@ export interface Arm {
   overlay: ArmOverlay;
 }
 
-// ───────────────────────────────────────────────────────── plano
+// ───────────────────────────────────────────────────────── plan
 
 export interface PlanEntry {
   order: number;
@@ -271,13 +271,13 @@ export interface UsageSnapshot {
   totalTokens: number | null;
   costUsd: number | null;
   credits: number | null;
-  /** Quantos eventos de usage entraram na conta. 0 = nada. */
+  /** How many usage events went into the total. 0 means none. */
   samples: number;
   /**
-   * Como o total foi obtido. "terminal" = evento de resumo do CLI, que ja vem
-   * acumulado. "somado" = soma de eventos parciais, na ausencia de resumo.
+   * How the total was obtained. "terminal" = the CLI's summary event, which is
+   * already cumulative. "summed" = the sum of partial events, absent a summary.
    */
-  basis: "terminal" | "somado" | "nenhum";
+  basis: "terminal" | "summed" | "none";
   source: "stream" | "none";
 }
 
@@ -294,7 +294,7 @@ export interface RunRecord {
   wallClockMs: number;
   agentMs: number;
   exitCode: number | null;
-  /** Turnos do agente: 1 = tentativa inicial, >1 = reparo por gate. */
+  /** Agent turns: 1 = first attempt, >1 = repair driven by a gate. */
   agentTurns: number;
   timedOut: boolean;
   usageFromStream: UsageSnapshot;

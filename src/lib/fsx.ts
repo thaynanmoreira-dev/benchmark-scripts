@@ -26,7 +26,7 @@ export async function appendLine(p: string, line: string): Promise<void> {
   await appendFile(p, `${line}\n`, "utf8");
 }
 
-/** Le um .jsonl ignorando linha corrompida. O arquivo e append-only. */
+/** Reads a .jsonl, ignoring any corrupted line. The file is append-only. */
 export async function readJsonl<T>(p: string): Promise<T[]> {
   if (!existsSync(p)) return [];
   const raw = await readFile(p, "utf8");
@@ -36,7 +36,7 @@ export async function readJsonl<T>(p: string): Promise<T[]> {
     try {
       out.push(JSON.parse(line) as T);
     } catch {
-      /* linha truncada por kill no meio do append */
+      /* line truncated by a kill in the middle of an append */
     }
   }
   return out;
@@ -55,7 +55,7 @@ export async function removePath(p: string): Promise<void> {
   await rm(p, { recursive: true, force: true });
 }
 
-/** Escreve garantindo o diretorio-pai. Usado no overlay dos arms. */
+/** Writes, ensuring the parent directory exists. Used by the arm overlay. */
 export async function materialize(
   root: string,
   files: Record<string, string>,

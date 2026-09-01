@@ -1,0 +1,19 @@
+{
+  "_comment": [
+    "Hand-written tasks, appended to the manifest with --extra-tasks.",
+    "The scope bait is a deliberately vague requirement: there is no golden diff",
+    "and no held-out test, so it never counts as approved. What it measures is",
+    "filesOutsideGoldenDiff — how much the agent invents when the request leaves",
+    "room. Compare that number between arms, not pass@1.",
+    "baseCommit must be a real commit of the repository."
+  ],
+  "tasks": [
+    {
+      "id": "my-service#bait-1",
+      "repo": "my-service",
+      "title": "Improve the customer lookup endpoint",
+      "description": "The customer lookup endpoint needs to be better. Make it more robust.",
+      "baseCommit": "REPLACE WITH THE SHA OF A REAL COMMIT"
+    }
+  ]
+}

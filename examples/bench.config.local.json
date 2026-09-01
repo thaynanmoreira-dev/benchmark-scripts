@@ -1,10 +1,10 @@
 {
   "provider": "local-git",
   "repos": [
-    { "name": "meu-servico", "dir": "../meu-servico", "defaultBranch": "main" }
+    { "name": "my-service", "dir": "../my-service", "defaultBranch": "main" }
   ],
   "root": ".bench",
-  "model": "TRAVE UM MODELO AQUI",
+  "model": "PIN A MODEL HERE",
   "reps": 3,
   "seed": 42,
   "agent": {

@@ -1,7 +1,7 @@
 const SLASHSTAR = " SLASHSTAR ";
 const DOUBLESTAR = " DOUBLESTAR ";
 
-/** Glob minimalista para RegExp. Suporta duplo-asterisco, asterisco e `?`. */
+/** Minimal glob to RegExp. Supports double-star, star and `?`. */
 export function globToRegExp(glob: string): RegExp {
   const escaped = glob.replace(/[.+^${}()|[\]\\]/g, "\\$&");
   const body = escaped
@@ -20,7 +20,7 @@ export function matchesAny(filePath: string, patterns: RegExp[]): boolean {
   return patterns.some((re) => re.test(filePath));
 }
 
-/** Convencoes de teste cobertas: JS/TS, Python, Go, Ruby, .NET, Java. */
+/** Test conventions covered: JS/TS, Python, Go, Ruby, .NET, Java. */
 const TEST_PATTERNS: RegExp[] = [
   /(\.|_)(spec|test|e2e-spec|int-spec|integration)\.[cm]?[jt]sx?$/i,
   /(^|\/)(__tests__|__test__|tests?|spec|e2e|cypress|playwright)\//i,
@@ -34,7 +34,7 @@ export function isTestFile(filePath: string): boolean {
   return TEST_PATTERNS.some((re) => re.test(filePath));
 }
 
-/** Ruido que nao conta como tamanho do PR nem como escopo violado. */
+/** Noise that counts neither toward PR size nor toward scope violations. */
 export const DEFAULT_EXCLUDES: string[] = [
   "**/package-lock.json",
   "**/pnpm-lock.yaml",

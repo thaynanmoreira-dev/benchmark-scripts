@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Benchmark de configurações do Kiro (steering / tools / modo) medindo créditos por tarefa aprovada, a partir de PRs já mergeadas de qualquer repositório.",
+  "description": "Benchmark of Kiro configurations (steering / tools / mode) measuring credits per approved task, from already-merged PRs of any repository.",
   "engines": {
     "node": ">=22.6"
   },

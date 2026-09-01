@@ -1,4 +1,4 @@
-/** Saida de console consistente entre os scripts. Sem dependencias. */
+/** Console output kept consistent across the scripts. No dependencies. */
 
 const CSI = `${String.fromCharCode(27)}[`;
 const useColor = process.stdout.isTTY === true && process.env.NO_COLOR === undefined;
@@ -36,7 +36,7 @@ export function rule(label = ""): void {
   console.log(`\n${dim(`── ${label} ${line}`)}`);
 }
 
-/** Tabela de largura fixa. `cols` define header, largura e alinhamento. */
+/** Fixed-width table. `cols` defines header, width and alignment. */
 export function table(
   cols: Array<{ header: string; width: number; align?: "left" | "right" }>,
   rows: string[][],
@@ -51,7 +51,7 @@ export function table(
   }
 }
 
-/** Trunca preservando comeco e fim. Log de erro longo continua legivel. */
+/** Truncates keeping head and tail. A long error log stays readable. */
 export function clip(s: string, max: number): string {
   if (s.length <= max) return s;
   const head = Math.floor(max * 0.6);

@@ -1,12 +1,12 @@
 {
   "provider": "github",
-  "org": "minha-org",
+  "org": "my-org",
   "repos": [
     { "name": "servico-exemplo", "defaultBranch": "main" },
-    { "name": "web-app", "remoteUrl": "https://github.com/minha-org/web-app.git" }
+    { "name": "web-app", "remoteUrl": "https://github.com/my-org/web-app.git" }
   ],
   "root": ".bench",
-  "model": "TRAVE UM MODELO AQUI",
+  "model": "PIN A MODEL HERE",
   "reps": 3,
   "seed": 42,
   "agent": {

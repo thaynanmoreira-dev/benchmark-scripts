@@ -2,29 +2,29 @@
 /**
  * bench-run.ts
  *
- * O runner. Consome .bench/plan.json e executa cada celula (arm x tarefa x rep).
+ * The runner. Consumes .bench/plan.json and executes each cell (arm x task x rep).
  *
- * Para cada entrada, na ordem randomizada do plano:
- *   1. worktree detached do mirror no baseCommit
- *   2. instala dependencias (cache compartilhado por hash de lockfile)
- *   3. aplica o overlay do arm: apaga config pre-existente, escreve steering/mcp
- *   4. dispara o CLI do agente com a descricao da task
- *      -> arm com enforceGates entra em loop de reparo com lint/typecheck/arch
- *   5. fotografa os arquivos tocados (ANTES de plantar o grader)
- *   6. planta os testes held-out vindos do commit do PR e roda um a um
- *   7. roda os gates deterministicos
- *   8. compara o que foi tocado com o golden diff -> metrica de escopo
- *   9. append de uma linha em obs/runs.jsonl
- *  10. destroi o worktree
+ * For each entry, in the plan's randomized order:
+ *   1. detached worktree from the mirror at baseCommit
+ *   2. install dependencies (cache shared by lockfile hash)
+ *   3. apply the arm's overlay: wipe pre-existing config, write steering/mcp
+ *   4. fire the agent CLI with the task description
+ *      -> an arm with enforceGates enters a repair loop with lint/typecheck/arch
+ *   5. snapshot the touched files (BEFORE planting the grader)
+ *   6. plant the held-out tests from the PR commit and run them one by one
+ *   7. run the deterministic gates
+ *   8. compare what was touched against the golden diff -> scope metric
+ *   9. append one line to obs/runs.jsonl
+ *  10. destroy the worktree
  *
- * Interrompeu no meio? Rode de novo: runs ja gravados sao pulados.
+ * Interrupted midway? Run it again: runs already recorded are skipped.
  *
- * Uso:
+ * Usage:
  *   node src/bench-run.ts --config bench.config.json
  *   node src/bench-run.ts --only-arms A0,A3 --limit 12
  *   node src/bench-run.ts --dry-run
  *
- * Sem dependencias externas. Node >= 22.6.
+ * No external dependencies. Node >= 22.6.
  */
 
 import path from "node:path";
@@ -101,23 +101,23 @@ function parseOptions(argv: string[]): Options {
 // ══════════════════════════════════════════════════════ prompts
 
 /**
- * O prompt e IDENTICO em todos os arms. A unica coisa que varia entre arms e o
- * overlay (steering, mcp) e o modo do CLI. Se o prompt mudar junto, o
- * experimento deixa de atribuir o efeito a configuracao.
+ * The prompt is IDENTICAL across all arms. The only things that vary between
+ * arms are the overlay (steering, mcp) and the CLI mode. If the prompt varied
+ * too, the experiment could no longer attribute the effect to the configuration.
  */
 function taskPrompt(task: SelectedPr): string {
   const body = task.description.trim();
-  return `# Tarefa
+  return `# Task
 
 ${task.title}
 
-${body || "(o work item nao trouxe descricao alem do titulo)"}
+${body || "(the work item carried no description beyond the title)"}
 
-## Contexto de execucao
+## Execution context
 
-- Voce esta num worktree limpo do repositorio ${task.repo}, no commit anterior a esta mudanca.
-- Implemente a tarefa por completo, direto no codigo. Nao existe etapa de revisao depois.
-- Siga as convencoes que ja existem no repositorio.
+- You are in a clean worktree of repository ${task.repo}, at the commit before this change.
+- Implement the task completely, directly in the code. There is no review step afterwards.
+- Follow the conventions that already exist in the repository.
 `;
 }
 
@@ -129,18 +129,18 @@ function repairPrompt(task: SelectedPr, failures: GateResult[]): string {
     )
     .join("\n\n");
 
-  return `# Reparo
+  return `# Repair
 
-A tarefa abaixo foi implementada neste worktree, mas os gates deterministicos
-ficaram vermelhos. Corrija o que quebrou.
+The task below was implemented in this worktree, but the deterministic gates
+came back red. Fix what broke.
 
-Tarefa original: ${task.title}
+Original task: ${task.title}
 
-Regras do reparo:
-- Corrija apenas o que os gates apontam. Nao amplie o escopo.
-- Nao desative regra de lint, nao apague teste e nao relaxe configuracao para passar.
+Repair rules:
+- Fix only what the gates point at. Do not widen the scope.
+- Do not disable a lint rule, delete a test, or relax configuration to pass.
 
-## Gates vermelhos
+## Red gates
 
 ${blocks}
 `;
@@ -154,9 +154,9 @@ interface GateSpec {
 }
 
 /**
- * Os gates deterministicos. A suite propria do repo entra aqui como gate de
- * regressao: ela ja existe no commit base, entao o agente pode ve-la e roda-la
- * sem que isso vaze o grader held-out, que so e plantado depois.
+ * The deterministic gates. The repository's own suite enters here as a
+ * regression gate: it already exists at the base commit, so the agent can see
+ * and run it without that leaking the held-out grader, planted only afterwards.
  */
 function gateSpecs(profile: ProjectProfile): GateSpec[] {
   const c = profile.probe.commands;
@@ -182,7 +182,7 @@ async function runGates(
         passed: null,
         exitCode: null,
         durationMs: 0,
-        output: "gate nao aplicavel a este repositorio",
+        output: "gate not applicable to this repository",
       });
       continue;
     }
@@ -215,11 +215,11 @@ interface HeldOutResult {
 }
 
 /**
- * Planta os testes do PR original no worktree e roda um por um.
+ * Plants the original PR's tests in the worktree and runs them one by one.
  *
- * Um por um de proposito: da sinal parcial (2 de 3 passaram) e nao depende de
- * parsear a saida de nenhum runner especifico. O agente nunca ve estes
- * arquivos — eles so aparecem depois que ele terminou.
+ * One by one on purpose: it yields partial signal (2 of 3 passed) and does not
+ * depend on parsing the output of any specific runner. The agent never sees
+ * these files — they only appear after it has finished.
  */
 async function gradeHeldOut(
   worktree: string,
@@ -265,7 +265,7 @@ async function gradeHeldOut(
       });
     }
   } else if (profile.probe.commands.test) {
-    // sem forma de escopar por arquivo: a suite inteira vira um unico veredito
+    // no way to scope by file: the whole suite becomes a single verdict
     const res = await runCommand(profile.probe.commands.test, { cwd: worktree, timeoutMs });
     passed = res.ok ? 1 : 0;
     failed = res.ok ? 0 : 1;
@@ -284,7 +284,7 @@ async function gradeHeldOut(
   return { passed, failed, total: passed + failed, ran: true, overwrites, detail };
 }
 
-// ══════════════════════════════════════════════════════ escopo
+// ══════════════════════════════════════════════════════ scope
 
 function scopeMetrics(
   touched: string[],
@@ -299,7 +299,7 @@ function scopeMetrics(
   return { outside, missed: missedSource };
 }
 
-/** Ruido do proprio harness que nunca conta como escopo inventado. */
+/** Harness noise of our own that never counts as invented scope. */
 function isHarnessPath(file: string): boolean {
   return (
     file.startsWith(".kiro/") ||
@@ -309,7 +309,7 @@ function isHarnessPath(file: string): boolean {
   );
 }
 
-// ══════════════════════════════════════════════════════ um run
+// ══════════════════════════════════════════════════════ one run
 
 interface RunContext {
   cfg: BenchConfig;
@@ -370,20 +370,20 @@ async function executeRun(
     return record;
   };
 
-  // ── 1. worktree no commit base
+  // ── 1. worktree at the base commit
   try {
     if (!(await ensureCommit(mirror, task.baseCommit))) {
-      record.notes = `commit base ${task.baseCommit} inacessivel no mirror`;
+      record.notes = `base commit ${task.baseCommit} unreachable in the mirror`;
       return finish();
     }
     await addWorktree(mirror, worktree, task.baseCommit);
   } catch (err) {
-    record.notes = `worktree falhou: ${err instanceof Error ? err.message : String(err)}`;
+    record.notes = `worktree failed: ${err instanceof Error ? err.message : String(err)}`;
     return finish();
   }
 
   try {
-    // ── 2. dependencias
+    // ── 2. dependencies
     const install = await installDeps(
       worktree,
       path.join(ctx.root, "cache", "deps"),
@@ -397,16 +397,16 @@ async function executeRun(
       return finish();
     }
 
-    // ── 3. overlay do arm
+    // ── 3. the arm's overlay
     for (const rel of arm.overlay.remove) await removePath(path.join(worktree, rel));
     const overlayPaths = new Set(await materialize(worktree, arm.overlay.files));
 
-    // ── 4. agente, com loop de reparo quando o arm exige gates
+    // ── 4. agent, with a repair loop when the arm enforces gates
     //
-    // Arm sem enforceGates roda o agente uma vez e ponto: e exatamente essa a
-    // diferenca que A3 testa. Arm com enforceGates devolve os gates vermelhos
-    // ao agente ate ficarem verdes ou acabar o orcamento de turnos — e cada
-    // turno extra entra na conta de credito, que e o ponto do experimento.
+    // An arm without enforceGates runs the agent once and stops: that is
+    // exactly the difference A3 tests. An arm with enforceGates hands the red
+    // gates back to the agent until they go green or the turn budget runs out —
+    // and every extra turn lands on the credit bill, which is the whole point.
     const maxRetries = arm.overlay.enforceGates ? ctx.opts.maxGateRetries : 0;
     const specs = gateSpecs(profile);
     let usage: UsageSnapshot = emptyUsage();
@@ -432,7 +432,7 @@ async function executeRun(
       lastExit = res.exitCode;
       record.timedOut = record.timedOut || res.timedOut;
       if (res.spawnError) {
-        record.notes = `agente nao executou: ${res.spawnError}`;
+        record.notes = `agent did not execute: ${res.spawnError}`;
         record.status = "agent-failed";
         record.agentTurns = turns;
         record.agentMs = agentMs;
@@ -451,19 +451,19 @@ async function executeRun(
     record.exitCode = lastExit;
     record.usageFromStream = usage;
 
-    // ── 5. o que o agente tocou, antes de plantar o grader
+    // ── 5. what the agent touched, before planting the grader
     const touched = (await touchedFiles(workRepo(worktree))).filter((f) => !isHarnessPath(f));
     record.filesTouched = touched;
     const scope = scopeMetrics(touched, task, overlayPaths);
     record.filesOutsideGoldenDiff = scope.outside;
     record.goldenFilesMissed = scope.missed;
 
-    // ── 6. gates finais, AINDA sem o grader no disco. O laco de reparo ja
-    //      deixou um resultado fresco do ultimo turno; so recalcula quem nao rodou.
+    // ── 6. final gates, STILL with no grader on disk. The repair loop already
+    //      left a fresh result from the last turn; only re-run what never ran.
     const finalGates = gates ?? (await runGates(specs, worktree, ctx.gateTimeoutMs));
     for (const g of finalGates) record.gates[g.name] = g.passed;
 
-    // ── 7. grader held-out: planta os testes do PR e roda um a um
+    // ── 7. held-out grader: plant the PR tests and run them one by one
     const held = await gradeHeldOut(worktree, task, profile, touched, ctx.gateTimeoutMs);
     record.heldOutTests = {
       passed: held.passed,
@@ -474,15 +474,15 @@ async function executeRun(
     record.heldOutOverwrites = held.overwrites;
     record.gateDetail = [...finalGates, ...held.detail];
 
-    // ── 8. veredito
+    // ── 8. verdict
     const gatesGreen = finalGates.every((g) => g.passed !== false);
     const testsGreen = held.ran && held.failed === 0 && held.total > 0;
     record.success = gatesGreen && testsGreen;
     record.status = record.success ? "ok" : "graded-failed";
     if (!held.ran) {
       record.notes = task.testFiles.length
-        ? "grader held-out nao rodou: sem comando de teste no perfil"
-        : "tarefa sem teste held-out: nao pode ser aprovada automaticamente";
+        ? "held-out grader did not run: no test command in the profile"
+        : "task with no held-out test: cannot be approved automatically";
     }
     return finish();
   } finally {
@@ -492,7 +492,7 @@ async function executeRun(
   }
 }
 
-/** Mirror bare ou clone comum: o worktree sai dos dois do mesmo jeito. */
+/** Bare mirror or ordinary clone: the worktree comes out the same either way. */
 function openRepo(dir: string): GitRepo {
   const isBare = existsSync(path.join(dir, "HEAD")) && !existsSync(path.join(dir, ".git"));
   return isBare ? bareRepo(dir) : workRepo(dir);
@@ -507,8 +507,8 @@ function summarize(record: RunRecord): string {
       ? red(record.status.toUpperCase())
       : yellow("FAIL");
   const tests = record.heldOutTests.ran
-    ? `${record.heldOutTests.passed}/${record.heldOutTests.total} testes`
-    : "sem grader";
+    ? `${record.heldOutTests.passed}/${record.heldOutTests.total} tests`
+    : "no grader";
   const gates = Object.entries(record.gates)
     .map(([k, v]) => `${k}:${v === null ? "-" : v ? "ok" : "x"}`)
     .join(" ");
@@ -517,38 +517,38 @@ function summarize(record: RunRecord): string {
       ? `${record.usageFromStream.totalTokens} tok`
       : record.usageFromStream.costUsd !== null
         ? `$${record.usageFromStream.costUsd}`
-        : "custo n/d";
+        : "cost n/a";
   return (
-    `${verdict}  ${tests}  ${gates}  escopo+${record.filesOutsideGoldenDiff.length}  ` +
-    `turnos:${record.agentTurns}  ${fmtMs(record.wallClockMs)}  ${cost}`
+    `${verdict}  ${tests}  ${gates}  scope+${record.filesOutsideGoldenDiff.length}  ` +
+    `turns:${record.agentTurns}  ${fmtMs(record.wallClockMs)}  ${cost}`
   );
 }
 
 const USAGE = `
-bench-run — executa o plano: worktree, overlay do arm, agente, grader, gates
+bench-run — executes the plan: worktree, arm overlay, agent, grader, gates
 
-  node src/bench-run.ts [opcoes]
+  node src/bench-run.ts [options]
 
-  --config <arquivo>        config do benchmark            (bench.config.json)
-  --manifest <arquivo>      manifest do select-prs         (manifest.json)
-  --root <dir>              raiz de trabalho               (da config, ou .bench)
+  --config <file>           benchmark config               (bench.config.json)
+  --manifest <file>         select-prs manifest            (manifest.json)
+  --root <dir>              working root                   (from config, or .bench)
 
-selecao
-  --only-arms A0,A3         so estes arms
-  --only-tasks id1,id2      so estas tarefas
-  --only-repos a,b          so estes repos
-  --from <n>                comeca nesta posicao do plano
-  --limit <n>               teto de runs nesta execucao
-  --force                   reexecuta runs ja gravados
+selection
+  --only-arms A0,A3         only these arms
+  --only-tasks id1,id2      only these tasks
+  --only-repos a,b          only these repositories
+  --from <n>                start at this position in the plan
+  --limit <n>               cap on runs in this execution
+  --force                   re-execute runs already recorded
 
-execucao
-  --dry-run                 mostra o que rodaria, sem invocar o agente
+execution
+  --dry-run                 show what would run, without invoking the agent
   --install-strategy <s>    symlink | copy | fresh | none   (symlink)
-  --max-gate-retries <n>    turnos de reparo nos arms com gates (config, ou 2)
-  --pause-ms <n>            pausa entre runs
-  --keep-worktrees          nao apaga o worktree (para depurar)
+  --max-gate-retries <n>    repair turns in gated arms      (config, or 2)
+  --pause-ms <n>            pause between runs
+  --keep-worktrees          do not delete the worktree (for debugging)
 
-Runs ja gravados em obs/runs.jsonl sao pulados: pode interromper e retomar.
+Runs already recorded in obs/runs.jsonl are skipped: you can interrupt and resume.
 `;
 
 async function main(): Promise<void> {
@@ -558,17 +558,17 @@ async function main(): Promise<void> {
   }
   const opts = parseOptions(process.argv.slice(2));
   const cfg = await readJson<BenchConfig>(opts.config);
-  if (!cfg) throw new Error(`Config nao encontrado: ${opts.config}`);
+  if (!cfg) throw new Error(`Config not found: ${opts.config}`);
 
   const root = path.resolve(opts.root || cfg.root || ".bench");
   const planPath = path.join(root, "plan.json");
   const plan = await readJson<Plan>(planPath);
   if (!plan?.entries?.length) {
-    throw new Error(`Plano vazio ou ausente: ${planPath}\n   Rode bench-init.ts antes.`);
+    throw new Error(`Plan empty or missing: ${planPath}\n   Run bench-init.ts first.`);
   }
 
   const manifest = await readJson<Manifest>(opts.manifest);
-  if (!manifest?.tasks?.length) throw new Error(`Manifest vazio ou ausente: ${opts.manifest}`);
+  if (!manifest?.tasks?.length) throw new Error(`Manifest empty or missing: ${opts.manifest}`);
   const taskById = new Map(manifest.tasks.map((t) => [t.id, t]));
 
   const agent = resolveAgentConfig(cfg);
@@ -583,7 +583,7 @@ async function main(): Promise<void> {
   };
 
   if (!cfg.model) {
-    warn("cfg.model nao definido: sem modelo travado o resultado nao se sustenta.");
+    warn("cfg.model is not set: with no pinned model the result does not hold.");
   }
 
   const alreadyDone = opts.force ? new Set<string>() : await completedRunIds(root);
@@ -601,10 +601,10 @@ async function main(): Promise<void> {
 
   const selected = queue.slice(0, Number.isFinite(opts.limit) ? opts.limit : undefined);
 
-  console.log(bold(`\nbench-run — ${selected.length} run(s) de ${plan.totalRuns} no plano`));
-  info(`modelo: ${cfg.model ?? dim("(nao travado)")}   raiz: ${root}`);
-  if (alreadyDone.size) info(`${alreadyDone.size} run(s) ja gravados serao pulados`);
-  if (opts.dryRun) info(yellow("--dry-run: nenhum agente sera invocado"));
+  console.log(bold(`\nbench-run — ${selected.length} run(s) of ${plan.totalRuns} in the plan`));
+  info(`model: ${cfg.model ?? dim("(not pinned)")}   root: ${root}`);
+  if (alreadyDone.size) info(`${alreadyDone.size} run(s) already recorded will be skipped`);
+  if (opts.dryRun) info(yellow("--dry-run: no agent will be invoked"));
 
   let done = 0;
   let passes = 0;
@@ -612,7 +612,7 @@ async function main(): Promise<void> {
   for (const entry of selected) {
     const task = taskById.get(entry.taskId);
     if (!task) {
-      warn(`${entry.runId}: tarefa ${entry.taskId} nao esta no manifest — pulando`);
+      warn(`${entry.runId}: task ${entry.taskId} is not in the manifest — skipping`);
       continue;
     }
 
@@ -621,7 +621,7 @@ async function main(): Promise<void> {
     if (!arm) {
       const loaded = await readJson<Arm>(path.join(root, "arms", entry.repo, `${entry.arm}.json`));
       if (!loaded) {
-        warn(`${entry.runId}: arm ${armKey} nao encontrado — pulando`);
+        warn(`${entry.runId}: arm ${armKey} not found — skipping`);
         continue;
       }
       arm = loaded;
@@ -634,7 +634,7 @@ async function main(): Promise<void> {
         path.join(root, "projects", `${entry.repo}.json`),
       );
       if (!loaded) {
-        warn(`${entry.runId}: perfil de ${entry.repo} nao encontrado — pulando`);
+        warn(`${entry.runId}: profile for ${entry.repo} not found — skipping`);
         continue;
       }
       profile = loaded;
@@ -645,7 +645,7 @@ async function main(): Promise<void> {
     const head = `${cyan(`[${done}/${selected.length}]`)} ${entry.runId} ${dim(`${arm.label} / ${task.title.slice(0, 40)}`)}`;
 
     if (opts.dryRun) {
-      console.log(`${head}\n    ${dim(`worktree @ ${task.baseCommit.slice(0, 8)} | overlay: ${Object.keys(arm.overlay.files).join(", ") || "nenhum"} | gates: ${arm.overlay.enforceGates}`)}`);
+      console.log(`${head}\n    ${dim(`worktree @ ${task.baseCommit.slice(0, 8)} | overlay: ${Object.keys(arm.overlay.files).join(", ") || "none"} | gates: ${arm.overlay.enforceGates}`)}`);
       continue;
     }
 
@@ -661,11 +661,11 @@ async function main(): Promise<void> {
 
   console.log("");
   if (opts.dryRun) {
-    ok(`${done} run(s) seriam executados`);
+    ok(`${done} run(s) would be executed`);
   } else {
-    ok(`${done} run(s) concluidos, ${passes} aprovados`);
-    info(dim(`resultados em ${path.join(root, "obs/runs.jsonl")}`));
-    info(dim(`analise:  node src/bench-report.ts --root ${root}`));
+    ok(`${done} run(s) completed, ${passes} approved`);
+    info(dim(`results at ${path.join(root, "obs/runs.jsonl")}`));
+    info(dim(`analysis:  node src/bench-report.ts --root ${root}`));
   }
 }
 

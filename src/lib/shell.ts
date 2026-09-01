@@ -13,13 +13,13 @@ export interface CommandOptions {
   cwd: string;
   timeoutMs?: number;
   env?: Record<string, string>;
-  /** Corta a saida guardada. O log completo vira ruido no runs.jsonl. */
+  /** Caps the stored output. A full log would be noise in runs.jsonl. */
   maxOutput?: number;
 }
 
 /**
- * Executa um comando de shell e devolve o resultado sem lancar.
- * Falha de gate e informacao, nao excecao.
+ * Runs a shell command and returns the result without throwing.
+ * A failing gate is information, not an exception.
  */
 export function runCommand(command: string, opts: CommandOptions): Promise<CommandResult> {
   const timeoutMs = opts.timeoutMs ?? 600_000;
@@ -53,7 +53,7 @@ export function runCommand(command: string, opts: CommandOptions): Promise<Comma
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      // as ultimas linhas sao as que dizem o que quebrou
+      // the last lines are the ones that say what broke
       const trimmed = output.length > maxOutput ? output.slice(-maxOutput) : output;
       resolve({
         command,
@@ -73,7 +73,7 @@ export function runCommand(command: string, opts: CommandOptions): Promise<Comma
   });
 }
 
-/** Preenche o template `{files}` com paths devidamente aspeados. */
+/** Fills the `{files}` template with properly quoted paths. */
 export function fillFiles(template: string, files: string[]): string {
   const quoted = files.map((f) => `'${f.replace(/'/g, `'\\''`)}'`).join(" ");
   return template.includes("{files}")

@@ -1,0 +1,40 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "contract-before-code",
+      "description": "Before writing under src/, the task contract has to be complete: no fact without a source, no blocking assumption left open, no pending question. It is the only gate that catches a missing requirement — the others look at the code, and code that is wrong for the right reason passes them all.",
+      "trigger": "PreToolUse",
+      "matcher": "(fsWrite|fsReplace|strReplace).*src/",
+      "action": { "type": "command", "command": "npm run contract" },
+      "timeout": 60,
+      "enabled": true
+    },
+    {
+      "name": "format-on-save",
+      "description": "The formatter decides the style. No formatting discussion ever reaches the diff.",
+      "trigger": "PostFileSave",
+      "matcher": "\\.ts$",
+      "action": { "type": "command", "command": "npx prettier --write \"$KIRO_FILE\"" },
+      "timeout": 30,
+      "enabled": true
+    },
+    {
+      "name": "gates-before-stopping",
+      "description": "The task only ends with the gates green. The runner executes them in parallel and reports every problem at once, so the repair fits in a single round — chaining with && would hide the others and cost one invocation per problem.",
+      "trigger": "Stop",
+      "action": { "type": "command", "command": "npm run gates:fast" },
+      "timeout": 600,
+      "enabled": true
+    },
+    {
+      "name": "secrets-before-commit",
+      "description": "A leaked credential is the most concrete risk of working with an agent that has shell access.",
+      "trigger": "PreToolUse",
+      "matcher": "git commit",
+      "action": { "type": "command", "command": "npm run secrets" },
+      "timeout": 120,
+      "enabled": true
+    }
+  ]
+}

@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 /**
- * Agente falso usado pelo smoke test. Nao chama modelo nenhum.
+ * Fake agent used by the smoke test. It calls no model at all.
  *
- * Ele reage ao overlay do arm que esta no worktree, para que o smoke test
- * produza a mesma forma de resultado que um benchmark real produziria:
+ * It reacts to the arm overlay present in the worktree, so that the smoke test
+ * produces the same shape of result a real benchmark would:
  *
- *   sem steering            implementa, inventa arquivo fora do escopo
- *   com tech.md             implementa, inventa menos
- *   com grill.md            implementa, nao inventa nada
- *   prompt de reparo        conserta o gate vermelho
+ *   no steering             implements, invents a file outside the scope
+ *   with tech.md            implements, invents less
+ *   with grill.md           implements, invents nothing
+ *   repair prompt           fixes the red gate
  *
- * Custo simulado cresce com o numero de arquivos escritos, para o relatorio
- * ter o que agregar.
+ * Simulated cost grows with the number of files written, so the report has
+ * something to aggregate.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -26,19 +26,19 @@ const write = (rel, body) => {
 
 const RECIPES = [
   {
-    match: /helper de soma/i,
+    match: /sum helper/i,
     files: { "src/user/add.ts": "export function add(a: number, b: number): number {\n  return a + b;\n}\n" },
   },
   {
-    match: /servico de pedidos/i,
+    match: /order service/i,
     files: {
-      "src/order/consts.ts": "export const TAXA = 2;\n",
+      "src/order/consts.ts": "export const RATE = 2;\n",
       "src/order/order.service.ts":
-        "export class OrderService {\n  total(valores: number[]): number {\n    return valores.reduce((a, b) => a + b, 0);\n  }\n}\n",
+        "export class OrderService {\n  total(values: number[]): number {\n    return values.reduce((a, b) => a + b, 0);\n  }\n}\n",
     },
   },
   {
-    match: /modulo grande/i,
+    match: /large constants module/i,
     files: {
       "src/order/big.ts":
         Array.from({ length: 60 }, (_, i) => `export const big${i + 1} = ${i + 1};`).join("\n") + "\n",
@@ -48,8 +48,8 @@ const RECIPES = [
 
 let written = 0;
 
-if (/^# Reparo/m.test(prompt)) {
-  write(".repair-marker", "gate consertado\n");
+if (/^# Repair/m.test(prompt)) {
+  write(".repair-marker", "gate fixed\n");
   written = 1;
 } else {
   for (const recipe of RECIPES) {
@@ -59,13 +59,13 @@ if (/^# Reparo/m.test(prompt)) {
       written++;
     }
   }
-  const disciplina = has(".kiro/steering/grill.md") ? 2 : has(".kiro/steering/tech.md") ? 1 : 0;
-  if (disciplina === 0) {
-    write("src/extra/ninguem-pediu.ts", "export const featureNaoSolicitada = true;\n");
-    write("docs/README-novo.md", "# documentacao que ninguem pediu\n");
+  const discipline = has(".kiro/steering/grill.md") ? 2 : has(".kiro/steering/tech.md") ? 1 : 0;
+  if (discipline === 0) {
+    write("src/extra/nobody-asked.ts", "export const unrequestedFeature = true;\n");
+    write("docs/README-new.md", "# documentation nobody asked for\n");
     written += 2;
-  } else if (disciplina === 1) {
-    write("src/extra/ninguem-pediu.ts", "export const featureNaoSolicitada = true;\n");
+  } else if (discipline === 1) {
+    write("src/extra/nobody-asked.ts", "export const unrequestedFeature = true;\n");
     written++;
   }
 }
@@ -76,7 +76,7 @@ process.stdout.write(
   JSON.stringify({
     type: "message",
     message: {
-      content: [{ type: "text", text: `Escrevi ${written} arquivo(s).` }],
+      content: [{ type: "text", text: `Wrote ${written} file(s).` }],
       usage: { input_tokens: inputTokens, output_tokens: outputTokens },
     },
   }) + "\n",

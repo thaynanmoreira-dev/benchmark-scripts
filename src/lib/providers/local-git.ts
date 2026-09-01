@@ -4,23 +4,23 @@ import type { PrProvider, ProviderContext } from "./base.ts";
 import { shortBranch } from "./base.ts";
 
 /**
- * Provider sem API: reconstroi o corpus a partir do proprio historico git.
- * E o que torna o harness aplicavel a qualquer repositorio, inclusive um
- * clone offline sem token nenhum.
+ * API-less provider: rebuilds the corpus from the git history itself.
+ * This is what makes the harness applicable to any repository, including an
+ * offline clone with no token at all.
  *
- * Dois modos:
- *   merges  - cada merge commit e um PR. head = 2o pai, base = 1o pai.
- *   commits - cada commit de primeira linhagem e uma tarefa. Para repos
- *             que usam squash merge e portanto nao tem merge commit.
+ * Two modes:
+ *   merges  - each merge commit is a PR. head = 2nd parent, base = 1st parent.
+ *   commits - each first-parent commit is a task. For repositories
+ *             that squash-merge and therefore have no merge commits.
  *
- * O modo e escolhido sozinho por proporcao, nao por contagem absoluta: um
- * repositorio novo com 3 merges em 4 commits e claramente um repositorio de
- * merge commit, e um limiar fixo de "pelo menos 5 merges" o classificaria
- * errado. Da para forcar com PR_MODE=merges|commits.
+ * The mode is chosen by proportion, not by absolute count: a repository with
+ * 3 merges out of 4 commits is clearly a merge-commit repository, and a fixed
+ * threshold of "at least 5 merges" would classify it wrong. Force it with
+ * PR_MODE=merges|commits.
  */
 
-const UNIT = String.fromCharCode(31); // separador de campo
-const RECORD = String.fromCharCode(30); // separador de registro
+const UNIT = String.fromCharCode(31); // field separator
+const RECORD = String.fromCharCode(30); // record separator
 const FORMAT = ["%H", "%P", "%cI", "%s", "%b"].join(`%x1f`) + `%x1e`;
 
 interface RawCommit {
@@ -49,17 +49,17 @@ function parseLog(out: string): RawCommit[] {
   return commits;
 }
 
-/** Extrai numero e titulo de subjects de merge conhecidos. */
+/** Extracts the number and title from known merge subjects. */
 export function parseMergeSubject(
   subject: string,
   body: string,
 ): { id: number | null; title: string; description: string } {
-  // Azure DevOps: "Merged PR 1234: Titulo real"
+  // Azure DevOps: "Merged PR 1234: the real title"
   const azdo = subject.match(/^Merged PR (\d+):\s*(.*)$/i);
   if (azdo) {
     return { id: Number(azdo[1]), title: azdo[2].trim() || subject, description: body };
   }
-  // GitHub: "Merge pull request #123 from org/branch" — titulo vai no body
+  // GitHub: "Merge pull request #123 from org/branch" — the title is in the body
   const gh = subject.match(/^Merge pull request #(\d+) from \S+/i);
   if (gh) {
     const lines = body.split("\n");
@@ -74,7 +74,7 @@ export function parseMergeSubject(
   return { id: null, title: subject, description: body };
 }
 
-/** Id numerico estavel quando o provider nao tem numero de PR. */
+/** A stable numeric id for providers that have no PR number. */
 function syntheticId(sha: string): number {
   return Number.parseInt(sha.slice(0, 6), 16);
 }
@@ -110,8 +110,8 @@ async function resolveBranch(ctx: ProviderContext, targetBranch: string): Promis
 }
 
 /**
- * Merge commit ou squash merge? Decide pela proporcao de merges na primeira
- * linhagem, com uma amostra pequena e barata.
+ * Merge commits or squash merges? Decided by the proportion of merges on the
+ * first-parent line, from a small and cheap sample.
  */
 async function detectMode(
   ctx: ProviderContext,
@@ -126,7 +126,7 @@ async function detectMode(
   const total = merges.length + diretos.length;
   if (total === 0) return "commits";
 
-  // um quarto da primeira linhagem sendo merge ja caracteriza o fluxo de PR
+  // a quarter of the first-parent line being merges already marks a PR flow
   return merges.length / total >= 0.25 ? "merges" : "commits";
 }
 
@@ -156,8 +156,8 @@ export const localGit: PrProvider = {
     const out: PullRequestRef[] = [];
 
     for (const c of commits) {
-      // merges: base = primeiro pai (lado do alvo), head = segundo pai
-      // commits: base = pai unico, head = o proprio commit
+      // merges: base = first parent (the target side), head = second parent
+      // commits: base = the single parent, head = the commit itself
       const target = mode === "merges" ? c.parents[0] : c.parents[0];
       const head = mode === "merges" ? c.parents[1] : c.sha;
       if (!target || !head) continue;

@@ -21,8 +21,8 @@ export function getProvider(name: ProviderName): PrProvider {
 }
 
 /**
- * Escolhe o provider quando a config nao declara um.
- * A ordem reflete o custo: o que ja tem clone local nao precisa de API.
+ * Picks the provider when the config declares none.
+ * The order follows cost: something with a local clone needs no API.
  */
 export function detectProvider(
   cfgProvider: ProviderName | undefined,

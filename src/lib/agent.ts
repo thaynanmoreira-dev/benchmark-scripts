@@ -6,9 +6,9 @@ import path from "node:path";
 import type { AgentConfig, UsageSnapshot } from "./types.ts";
 
 /**
- * Adapter para o CLI do agente. O harness nao assume nada sobre o formato de
- * saida: aceita texto puro, stream-json e mistura dos dois. Calibre com
- * `node src/bench-init.ts --probe-agent` antes de gastar cota.
+ * Adapter for the agent CLI. The harness assumes nothing about the output
+ * format: it accepts plain text, stream-json, and a mixture of the two.
+ * Calibrate with `node src/bench-init.ts --probe-agent` before spending quota.
  */
 
 export const DEFAULT_AGENT: AgentConfig = {
@@ -25,21 +25,21 @@ export interface AgentInvocation {
   mode?: "vibe" | "spec";
   extraArgs?: string[];
   model?: string | null;
-  /** Caminho para gravar a saida bruta. Ajuda a depurar run ruim. */
+  /** Where to write the raw output. Helps debugging a bad run. */
   logPath?: string;
 }
 
 export interface AgentResult {
   ok: boolean;
-  /** Texto extraido do stream — o que o agente "disse". */
+  /** Text extracted from the stream — what the agent "said". */
   text: string;
-  /** Saida bruta, stdout + stderr, como veio. */
+  /** Raw output, stdout + stderr, exactly as it came. */
   raw: string;
   exitCode: number | null;
   timedOut: boolean;
   durationMs: number;
   usage: UsageSnapshot;
-  /** Erro de spawn (binario ausente, por exemplo). */
+  /** Spawn error (a missing binary, for instance). */
   spawnError: string | null;
 }
 
@@ -53,7 +53,7 @@ export function emptyUsage(): UsageSnapshot {
     costUsd: null,
     credits: null,
     samples: 0,
-    basis: "nenhum",
+    basis: "none",
     source: "none",
   };
 }
@@ -126,7 +126,7 @@ export async function runAgent(cfg: AgentConfig, inv: AgentInvocation): Promise<
 
     if (cfg.promptMode === "stdin") {
       child.stdin.on("error", () => {
-        /* CLI que fecha stdin cedo */
+        /* a CLI that closes stdin early */
       });
       child.stdin.write(inv.prompt);
       child.stdin.end();
@@ -139,9 +139,9 @@ export async function runAgent(cfg: AgentConfig, inv: AgentInvocation): Promise<
   });
 }
 
-// ─────────────────────────────────────────────────── parsing da saida
+// ─────────────────────────────────────────────────── output parsing
 
-/** Tolerante: aceita texto puro ou stream-json com blocos de texto. */
+/** Tolerant: accepts plain text or stream-json carrying text blocks. */
 export function extractText(raw: string): string {
   const lines = raw.split("\n").filter((l) => l.trim());
   const jsonLines = lines.filter((l) => l.trimStart().startsWith("{"));
@@ -160,7 +160,7 @@ export function extractText(raw: string): string {
   return chunks.length ? chunks.join("") : raw;
 }
 
-/** Extrai o primeiro objeto JSON do texto, tolerando cercas de codigo. */
+/** Extracts the first JSON object from the text, tolerating code fences. */
 export function parseJsonLoose<T>(text: string): T | null {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   const candidate = fenced ? fenced[1] : text;
@@ -169,7 +169,7 @@ export function parseJsonLoose<T>(text: string): T | null {
   if (start < 0 || end <= start) return null;
   const direct = tryParse(candidate.slice(start, end + 1));
   if (direct) return direct as T;
-  // fecho extra depois do objeto: tenta encurtar ate parsear
+  // extra closing brace after the object: shorten until it parses
   for (let i = end; i > start; i = candidate.lastIndexOf("}", i - 1)) {
     const attempt = tryParse(candidate.slice(start, i + 1));
     if (attempt) return attempt as T;
@@ -197,7 +197,7 @@ function walk(node: unknown, visit: (o: object) => void, depth = 0): void {
   }
 }
 
-// ─────────────────────────────────────────────────── custo
+// ─────────────────────────────────────────────────── cost
 
 const TOKEN_KEYS: Record<string, keyof UsageSnapshot> = {
   input_tokens: "inputTokens",
@@ -217,7 +217,7 @@ const CREDIT_KEYS = ["credits", "credits_used", "creditsUsed", "credit_cost"];
 
 type TokenCounts = Partial<Record<keyof UsageSnapshot, number>>;
 
-/** Contagens que este objeto declara diretamente, sem olhar os filhos. */
+/** Counts this object declares directly, without looking at its children. */
 function ownTokens(node: Record<string, unknown>): TokenCounts | null {
   const counts: TokenCounts = {};
   let found = false;
@@ -232,17 +232,17 @@ function ownTokens(node: Record<string, unknown>): TokenCounts | null {
 }
 
 /**
- * Acha o unico no de contabilidade que representa este evento.
+ * Finds the single accounting node that represents this event.
  *
- * Isto e o que impede a contagem multipla. Um CLI real repete o mesmo consumo
- * em varios lugares do mesmo objeto — o Claude Code, por exemplo, publica os
- * mesmos tokens em `usage`, de novo em `usage.iterations[]` e mais uma vez em
- * `modelUsage[modelo]` com as chaves em camelCase. Somar tudo multiplicava o
- * consumo por oito no teste com o CLI de verdade.
+ * This is what prevents multiple counting. A real CLI repeats the same usage in
+ * several places of the same object — Claude Code, for instance, publishes the
+ * same tokens under `usage`, again under `usage.iterations[]`, and once more
+ * under `modelUsage[model]` with camelCase keys. Summing everything multiplied
+ * the usage by eight when tested against the real CLI.
  *
- * Regra: prefere o no sob a chave `usage`; na falta dele, o primeiro no em
- * largura que declare tokens. Achou, para de descer — o que estiver aninhado
- * abaixo e detalhamento do mesmo consumo, nao consumo adicional.
+ * Rule: prefer the node under the `usage` key; failing that, the first node in
+ * breadth-first order that declares tokens. Once found, stop descending —
+ * whatever is nested below details the same usage, it is not extra usage.
  */
 function readUsageNode(root: unknown): TokenCounts | null {
   const queue: unknown[] = [root];
@@ -267,7 +267,7 @@ function readUsageNode(root: unknown): TokenCounts | null {
     const own = ownTokens(rec);
     if (own) {
       fallbacks.push(own);
-      continue; // nao desce: filhos so detalham este mesmo consumo
+      continue; // do not descend: children only detail this same usage
     }
 
     queue.push(...Object.values(rec));
@@ -299,19 +299,20 @@ function addCounts(a: TokenCounts, b: TokenCounts): TokenCounts {
 }
 
 /**
- * Varre a saida bruta atras da contabilidade de uso do CLI.
+ * Scans the raw output for the CLI's usage accounting.
  *
- * Duas formas de stream sao suportadas, nesta ordem de preferencia:
+ * Two stream shapes are supported, in this order of preference:
  *
- *   terminal  O CLI fecha a invocacao com um evento de resumo que ja traz o
- *             total acumulado (e reconhecido por trazer custo). Esse evento e
- *             a verdade: os eventos anteriores sao parciais do mesmo total, e
- *             somar todos contaria o mesmo consumo varias vezes.
- *   somado    Nao ha evento de resumo. Cada evento contribui uma vez, e o
- *             total e a soma.
+ *   terminal  The CLI closes the invocation with a summary event that already
+ *             carries the cumulative total (recognised by carrying a cost).
+ *             That event is the truth: the earlier events are partials of the
+ *             same total, and summing them all would count the same usage
+ *             several times over.
+ *   summed    There is no summary event. Each event contributes once, and the
+ *             total is the sum.
  *
- * `basis` registra qual das duas valeu, e `samples` quantos eventos entraram,
- * para que o numero possa ser conferido a mao contra o dashboard.
+ * `basis` records which of the two applied, and `samples` how many events went
+ * in, so the number can be checked by hand against the dashboard.
  */
 export function extractUsage(raw: string): UsageSnapshot {
   const usage = emptyUsage();
@@ -327,7 +328,7 @@ export function extractUsage(raw: string): UsageSnapshot {
   const withCost = events.filter((e) => maxNumberByKey(e, COST_KEYS) !== null);
   const withCredits = events.filter((e) => maxNumberByKey(e, CREDIT_KEYS) !== null);
 
-  const somarEventos = (): { counts: TokenCounts | null; samples: number } => {
+  const sumEvents = (): { counts: TokenCounts | null; samples: number } => {
     let counts: TokenCounts | null = null;
     let samples = 0;
     for (const event of events) {
@@ -340,22 +341,22 @@ export function extractUsage(raw: string): UsageSnapshot {
   };
 
   let counts: TokenCounts | null = null;
-  const resumo = withCost.length > 0 ? withCost[withCost.length - 1] : null;
-  const doResumo = resumo ? readUsageNode(resumo) : null;
+  const summary = withCost.length > 0 ? withCost[withCost.length - 1] : null;
+  const fromSummary = summary ? readUsageNode(summary) : null;
 
-  if (doResumo) {
-    // o resumo traz o acumulado da invocacao inteira; os parciais que o
-    // precedem sao o mesmo consumo detalhado, e somar contaria duas vezes
-    counts = doResumo;
+  if (fromSummary) {
+    // the summary carries the whole invocation's total; the partials before it
+    // are the same usage in detail, and summing would count it twice
+    counts = fromSummary;
     usage.basis = "terminal";
     usage.samples = 1;
   } else {
-    // ha CLI que fecha com custo mas deixa os tokens so nos eventos de
-    // mensagem. Nesse caso o custo vem do resumo e os tokens, da soma.
-    const somado = somarEventos();
-    counts = somado.counts;
-    usage.basis = somado.samples > 0 ? "somado" : "nenhum";
-    usage.samples = somado.samples;
+    // some CLIs close with a cost but leave the tokens only in the message
+    // events. There the cost comes from the summary and the tokens from the sum.
+    const summed = sumEvents();
+    counts = summed.counts;
+    usage.basis = summed.samples > 0 ? "summed" : "none";
+    usage.samples = summed.samples;
   }
 
   if (counts) {
@@ -384,7 +385,7 @@ export function extractUsage(raw: string): UsageSnapshot {
   return usage;
 }
 
-/** Soma dois snapshots. Usado quando um run tem varios turnos de reparo. */
+/** Adds two snapshots. Used when a run has several repair turns. */
 export function addUsage(a: UsageSnapshot, b: UsageSnapshot): UsageSnapshot {
   const add = (x: number | null, y: number | null): number | null =>
     x === null && y === null ? null : (x ?? 0) + (y ?? 0);
@@ -397,12 +398,12 @@ export function addUsage(a: UsageSnapshot, b: UsageSnapshot): UsageSnapshot {
     costUsd: add(a.costUsd, b.costUsd),
     credits: add(a.credits, b.credits),
     samples: a.samples + b.samples,
-    basis: a.basis === "nenhum" ? b.basis : a.basis,
+    basis: a.basis === "none" ? b.basis : a.basis,
     source: a.source === "stream" || b.source === "stream" ? "stream" : "none",
   };
 }
 
-/** Resolve o adapter aceitando o alias legado `kiro`. */
+/** Resolves the adapter, accepting the legacy `kiro` alias. */
 export function resolveAgentConfig(cfg: {
   agent?: AgentConfig;
   kiro?: AgentConfig;

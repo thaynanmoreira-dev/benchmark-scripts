@@ -2,24 +2,24 @@
 /**
  * bench-init.ts
  *
- * Bootstrap do benchmark de configuracoes do agente.
+ * Bootstrap for the agent configuration benchmark.
  *
- * Fluxo:
- *   1. materializa mirrors bare dos repos (os worktrees de run saem daqui)
- *   2. sonda deterministica da stack (package.json, lockfile, arvore, CI)
- *   3. passada semantica via CLI do agente, UMA vez por repo, cacheada
- *   4. escreve o perfil do projeto  -> .bench/projects/<repo>.json
- *   5. gera os arms POR REPO        -> .bench/arms/<repo>/<arm>.json
- *   6. scaffolding de observabilidade -> .bench/obs/
- *   7. emite o plano randomizado    -> .bench/plan.json
+ * Flow:
+ *   1. materialize bare mirrors of the repositories (run worktrees come from here)
+ *   2. deterministic stack probe (package.json, lockfile, tree, CI)
+ *   3. semantic pass via the agent CLI, ONCE per repository, cached
+ *   4. write the project profile   -> .bench/projects/<repo>.json
+ *   5. generate the arms PER REPO  -> .bench/arms/<repo>/<arm>.json
+ *   6. observability scaffolding   -> .bench/obs/
+ *   7. emit the randomized plan    -> .bench/plan.json
  *
- * O runner consome plan.json. Este script nao executa nenhuma tarefa.
+ * The runner consumes plan.json. This script executes no task.
  *
- * Uso:
- *   node src/bench-init.ts --probe-agent          # calibre o adapter primeiro
+ * Usage:
+ *   node src/bench-init.ts --probe-agent          # calibrate the adapter first
  *   node src/bench-init.ts --config bench.config.json
  *
- * Sem dependencias externas. Node >= 22.6.
+ * No external dependencies. Node >= 22.6.
  */
 
 import path from "node:path";
@@ -49,10 +49,10 @@ import type { GitRepo } from "./lib/git.ts";
 
 const CONFIG_EXAMPLE: BenchConfig = {
   provider: "local-git",
-  org: "sua-org",
-  project: "seu-projeto",
-  repos: [{ name: "servico-exemplo", dir: "./repos/servico-exemplo" }],
-  model: "REGISTRE O MODELO TRAVADO",
+  org: "your-org",
+  project: "your-project",
+  repos: [{ name: "example-service", dir: "./repos/example-service" }],
+  model: "RECORD THE PINNED MODEL",
   reps: 3,
   seed: 42,
   agent: DEFAULT_AGENT,
@@ -86,7 +86,7 @@ async function resolveRepo(
     });
   if (!url) {
     throw new Error(
-      `${repo.name}: sem "dir" nem "remoteUrl", e o provider ${providerName} nao consegue derivar a URL.`,
+      `${repo.name}: no "dir" and no "remoteUrl", and provider ${providerName} cannot derive the URL.`,
     );
   }
 
@@ -98,58 +98,58 @@ async function resolveRepo(
   return { git, mirrorPath: mirrorDir };
 }
 
-/** Checkout descartavel usado so para a sondagem. */
+/** Throwaway checkout used only for the probe. */
 async function probeCheckout(root: string, repo: RepoSpec, git: GitRepo): Promise<string | null> {
-  if (!git.bare) return git.dir; // clone com working tree ja serve
+  if (!git.bare) return git.dir; // a clone with a working tree already does
   const wt = path.join(root, "probe", repo.name);
   const branch = await resolveDefaultBranch(git, repo.defaultBranch);
   try {
     await addWorktree(git, wt, branch);
     return wt;
   } catch (err) {
-    warn(`${repo.name}: nao consegui criar worktree de sondagem (${String(err).slice(0, 120)})`);
+    warn(`${repo.name}: could not create a probe worktree (${String(err).slice(0, 120)})`);
     return null;
   }
 }
 
-// ══════════════════════════════════════════════════════ passada semantica
+// ══════════════════════════════════════════════════════ semantic pass
 
 function semanticPrompt(probe: StackProbe): string {
-  return `Voce esta perfilando um repositorio para configurar um benchmark. Leia os arquivos que precisar.
+  return `You are profiling a repository to configure a benchmark. Read whatever files you need.
 
-Fatos ja coletados (nao precisa reconfirmar):
-- Ecossistema: ${probe.ecosystem}
-- Frameworks: ${probe.framework.join(", ") || "nao detectado"}
-- Test runner: ${probe.testRunner ?? "nenhum"}
-- Monorepo: ${probe.isMonorepo ? (probe.workspaceTool ?? "sim") : "nao"}
-- Persistencia: ${[...probe.deps.db, ...probe.deps.orm].join(", ") || "nenhuma"}
-- Mensageria: ${probe.deps.messaging.join(", ") || "nenhuma"}
+Facts already collected (no need to reconfirm):
+- Ecosystem: ${probe.ecosystem}
+- Frameworks: ${probe.framework.join(", ") || "not detected"}
+- Test runner: ${probe.testRunner ?? "none"}
+- Monorepo: ${probe.isMonorepo ? (probe.workspaceTool ?? "yes") : "no"}
+- Persistence: ${[...probe.deps.db, ...probe.deps.orm].join(", ") || "none"}
+- Messaging: ${probe.deps.messaging.join(", ") || "none"}
 
-Estrutura de diretorios:
+Directory structure:
 ${probe.srcTree.slice(0, 120).join("\n")}
 
-Responda SOMENTE com um objeto JSON, sem cercas de codigo e sem texto ao redor:
+Answer with a JSON object ONLY, no code fences and no surrounding text:
 
 {
-  "architectureStyle": "descricao curta, ex: Clean Architecture com CQRS por modulo",
+  "architectureStyle": "short description, e.g. Clean Architecture with CQRS per module",
   "layers": [
     { "name": "domain", "globs": ["src/*/domain/**"], "mayImport": [] },
     { "name": "application", "globs": ["src/*/application/**"], "mayImport": ["domain"] }
   ],
-  "domainSummary": "2 a 3 frases sobre o que este servico faz no negocio",
-  "criticalInvariants": ["regras cuja quebra causa incidente"],
-  "testFileConvention": "ex: *.spec.ts ao lado do arquivo",
-  "suggestedNonGoals": ["coisas que um agente costuma fazer aqui sem ser pedido"],
+  "domainSummary": "2 to 3 sentences on what this service does for the business",
+  "criticalInvariants": ["rules whose breach causes an incident"],
+  "testFileConvention": "e.g. *.spec.ts next to the file",
+  "suggestedNonGoals": ["things an agent tends to do here without being asked"],
   "confidence": "high | medium | low",
-  "notes": "o que ficou ambiguo"
+  "notes": "whatever stayed ambiguous"
 }
 
-Baseie-se no que esta no codigo. Sem evidencia para um campo, use confianca baixa e diga em notes.`;
+Base it on what is in the code. With no evidence for a field, use low confidence and say so in notes.`;
 }
 
 function fallbackSemantic(probe: StackProbe): SemanticProfile {
   return {
-    architectureStyle: probe.framework.join(" + ") || "nao determinado",
+    architectureStyle: probe.framework.join(" + ") || "undetermined",
     layers: [],
     domainSummary: "",
     criticalInvariants: [],
@@ -157,8 +157,8 @@ function fallbackSemantic(probe: StackProbe): SemanticProfile {
     suggestedNonGoals: [],
     confidence: "low",
     notes:
-      "CLI do agente indisponivel ou saida nao parseavel. Preencha a mao antes de rodar o " +
-      "benchmark: steering ruim contamina A2 em diante por igual.",
+      "Agent CLI unavailable or output not parseable. Fill this in by hand before " +
+      "running the benchmark: bad steering contaminates A2 onwards equally.",
   };
 }
 
@@ -166,7 +166,7 @@ function isSemanticProfile(v: unknown): v is SemanticProfile {
   return typeof v === "object" && v !== null && "architectureStyle" in v;
 }
 
-// ══════════════════════════════════════════════════════ plano
+// ══════════════════════════════════════════════════════ plan
 
 async function buildPlan(
   manifestPath: string,
@@ -177,8 +177,8 @@ async function buildPlan(
   const manifest = await readJson<Manifest>(manifestPath);
   if (!manifest?.tasks?.length) {
     warn(
-      `${manifestPath} nao encontrado ou vazio. Rode select-prs.ts antes.\n` +
-        `   O plano sai vazio, o resto do bootstrap continua valido.`,
+      `${manifestPath} not found or empty. Run select-prs.ts first.\n` +
+        `   The plan comes out empty; the rest of the bootstrap stays valid.`,
     );
     return [];
   }
@@ -213,60 +213,60 @@ async function buildPlan(
 
   if (orphans.size) {
     warn(
-      `Tarefas de repos sem perfil foram ignoradas: ${[...orphans].join(", ")}. ` +
-        `Inclua esses repos na config do bench-init.`,
+      `Tasks from unprofiled repositories were ignored: ${[...orphans].join(", ")}. ` +
+        `Include those repositories in the bench-init config.`,
     );
   }
 
-  // ordem randomizada: sem isso, drift do servico ao longo do dia vira
-  // "efeito do arm" no resultado final
+  // randomized order: without it, service drift over the day turns into an
+  // "arm effect" in the final result
   const rand = mulberry32(cfg.seed ?? 42);
   return shuffle(cells, rand).map((c, i) => ({ ...c, order: i + 1 }));
 }
 
-// ══════════════════════════════════════════════════════ probe do CLI
+// ══════════════════════════════════════════════════════ CLI probe
 
 async function probeAgent(adapter: AgentConfig): Promise<void> {
   console.log(bold(`\nTestando adapter: ${adapter.cmd} ${adapter.args.join(" ")}`));
   info(`modo de prompt: ${adapter.promptMode}`);
 
   const res = await runAgent(adapter, {
-    prompt: 'Responda apenas com o JSON {"ok":true} e nada mais.',
+    prompt: 'Answer with the JSON {"ok":true} and nothing else.',
     cwd: process.cwd(),
   });
 
   if (res.spawnError) {
-    fail(`nao consegui executar "${adapter.cmd}": ${res.spawnError}`);
+    fail(`could not execute "${adapter.cmd}": ${res.spawnError}`);
   }
   info(`exit code: ${res.exitCode}${res.timedOut ? " (timeout)" : ""}`);
-  console.log(dim("\n--- saida bruta (2000 chars) ---"));
+  console.log(dim("\n--- out bruta (2000 chars) ---"));
   console.log(clip(res.raw, 2000));
   console.log(dim("\n--- texto extraido (1000 chars) ---"));
   console.log(clip(res.text, 1000));
-  console.log(dim("\n--- JSON parseado ---"));
+  console.log(dim("\n--- parsed JSON ---"));
   console.log(JSON.stringify(parseJsonLoose(res.text)));
-  console.log(dim("\n--- contabilidade de uso encontrada no stream ---"));
+  console.log(dim("\n--- usage accounting found in the stream ---"));
   console.log(JSON.stringify(res.usage, null, 2));
 
   console.log("");
   if (res.usage.source === "stream") {
     ok(
-      "O stream expoe uso. O runner captura custo automaticamente e voce pode " +
-        "paralelizar os runs.",
+      "The stream exposes usage. The runner captures cost automatically and you " +
+        "can parallelize the runs.",
     );
   } else {
     warn(
-      "Nenhum campo de uso no stream. Rode os arms EM SERIE e registre o saldo do " +
-        "dashboard em .bench/obs/credits.json antes e depois de cada bloco.",
+      "No usage field in the stream. Run the arms SERIALLY and record the dashboard " +
+        "balance in .bench/obs/credits.json before and after each block.",
     );
   }
   console.log(
     dim(
-      `\nSe o texto extraido veio vazio ou sujo, ajuste "agent" no bench.config.json:\n` +
-        `  - flags corretas do seu build do CLI\n` +
-        `  - promptMode "arg" + promptFlag se ele nao aceitar stdin\n` +
-        `  - modeArgs.vibe / modeArgs.spec para as flags de modo\n` +
-        `  - modelFlag para travar o modelo`,
+      `\nIf the extracted text came back empty or dirty, adjust "agent" in bench.config.json:\n` +
+        `  - the correct flags for your CLI build\n` +
+        `  - promptMode "arg" + promptFlag if it does not accept stdin\n` +
+        `  - modeArgs.vibe / modeArgs.spec for the mode flags\n` +
+        `  - modelFlag to pin the model`,
     ),
   );
 }
@@ -274,20 +274,20 @@ async function probeAgent(adapter: AgentConfig): Promise<void> {
 // ══════════════════════════════════════════════════════ main
 
 const USAGE = `
-bench-init — mirrors, perfil do projeto, arms, observabilidade e plano
+bench-init — mirrors, project profile, arms, observability and plan
 
-  node src/bench-init.ts [opcoes]
+  node src/bench-init.ts [options]
 
-  --probe-agent             invoca o CLI do agente uma vez e mostra a saida
-                            bruta, o texto extraido e se ha uso no stream.
-                            Rode isto ANTES de qualquer outra coisa.
-  --config <arquivo>        config do benchmark            (bench.config.json)
-  --manifest <arquivo>      manifest do select-prs         (manifest.json)
-  --root <dir>              raiz de trabalho               (.bench)
-  --repos a,b               so estes repos da config
-  --no-agent                pula a passada semantica (perfil vira fallback)
-  --refresh-semantic        refaz a passada semantica mesmo com cache valido
-  --no-fetch                nao atualiza os mirrors ja existentes
+  --probe-agent             invokes the agent CLI once and shows the raw
+                            output, the extracted text and whether the stream
+                            carries usage. Run this BEFORE anything else.
+  --config <file>           benchmark config               (bench.config.json)
+  --manifest <file>         select-prs manifest            (manifest.json)
+  --root <dir>              working root                   (.bench)
+  --repos a,b               only these repositories from the config
+  --no-agent                skip the semantic pass (profile falls back)
+  --refresh-semantic        redo the semantic pass even with a valid cache
+  --no-fetch                do not update mirrors that already exist
 `;
 
 async function main(): Promise<void> {
@@ -307,7 +307,7 @@ async function main(): Promise<void> {
 
   if (!cfg) {
     throw new Error(
-      `Config nao encontrado: ${configPath}\n\nExemplo:\n${JSON.stringify(CONFIG_EXAMPLE, null, 2)}`,
+      `Config not found: ${configPath}\n\nExample:\n${JSON.stringify(CONFIG_EXAMPLE, null, 2)}`,
     );
   }
 
@@ -320,7 +320,7 @@ async function main(): Promise<void> {
 
   const repoFilter = a.list("--repos");
   const repos = repoFilter.length ? cfg.repos.filter((r) => repoFilter.includes(r.name)) : cfg.repos;
-  if (repos.length === 0) throw new Error("Nenhum repo selecionado.");
+  if (repos.length === 0) throw new Error("No repository selected.");
 
   step(1, 5, "Mirrors");
   const gitByRepo = new Map<string, { git: GitRepo; mirrorPath: string }>();
@@ -328,7 +328,7 @@ async function main(): Promise<void> {
     gitByRepo.set(repo.name, await resolveRepo(root, repo, cfg, refreshMirrors));
   }
 
-  step(2, 5, "Sondagem (deterministica primeiro, LLM so no que sobra)");
+  step(2, 5, "Probe (deterministic first, LLM only for what is left)");
   const profiles: ProjectProfile[] = [];
 
   for (const repo of repos) {
@@ -339,17 +339,17 @@ async function main(): Promise<void> {
     const probe = await probeStack(repo.name, wt);
     info(
       `${repo.name}: ${probe.framework.join("+") || probe.ecosystem} | ${probe.packageManager} | ` +
-        `${probe.testRunner ?? "sem runner"}` +
+        `${probe.testRunner ?? "no runner"}` +
         (probe.existingKiro.steering.length || probe.existingKiro.mcp
-          ? ` | ja tem config de agente versionada`
+          ? ` | already has agent config in version control`
           : ""),
     );
     if (probe.existingKiro.steering.length || probe.existingKiro.mcp || probe.existingKiro.agentsMd) {
       warn(
-        `${repo.name} versiona configuracao de agente. ` +
+        `${repo.name} keeps agent configuration in version control. ` +
           (stripExisting
-            ? "Os arms vao apaga-la no worktree para que A0 seja baseline limpo."
-            : 'baselineStripsExistingConfig=false: A0 NAO e baseline limpo, e sim "config atual".'),
+            ? "The arms will wipe it in the worktree so that A0 is a clean baseline."
+            : 'baselineStripsExistingConfig=false: A0 is NOT a clean baseline, but "current config".'),
       );
     }
 
@@ -368,18 +368,18 @@ async function main(): Promise<void> {
     if (cacheValid) {
       semantic = cached!.semantic;
       source = "cached";
-      info(`  perfil semantico reaproveitado do cache (lockfile inalterado)`);
+      info(`  semantic profile reused from cache (lockfile unchanged)`);
     } else if (!skipSemantic) {
-      process.stdout.write(`    perfilando com ${adapter.cmd}... `);
+      process.stdout.write(`    profiling with ${adapter.cmd}... `);
       const res = await runAgent(adapter, { prompt: semanticPrompt(probe), cwd: wt });
       const parsed = res.ok ? parseJsonLoose<unknown>(res.text) : null;
       if (isSemanticProfile(parsed)) {
         semantic = parsed;
         source = "agent";
-        console.log(`ok (confianca: ${parsed.confidence})`);
+        console.log(`ok (confidence: ${parsed.confidence})`);
       } else {
         console.log(
-          `falhou (exit ${res.exitCode}${res.spawnError ? `, ${res.spawnError}` : ""}) — fallback`,
+          `failed (exit ${res.exitCode}${res.spawnError ? `, ${res.spawnError}` : ""}) — fallback`,
         );
       }
     }
@@ -400,7 +400,7 @@ async function main(): Promise<void> {
     await writeJson(path.join(root, "projects", `${p.repo}.json`), p);
   }
 
-  step(3, 5, "Arms (um conjunto por repo — steering segue a arquitetura de cada um)");
+  step(3, 5, "Arms (one set per repository — steering follows each architecture)");
   const armsByRepo = new Map<string, Arm[]>();
   for (const p of profiles) {
     const arms = buildArms(p, stripExisting);
@@ -411,11 +411,11 @@ async function main(): Promise<void> {
     info(`${p.repo}: ${arms.map((x) => x.id).join(" ")}  ${dim(arms[0].overlay.remove.length ? `(strip: ${arms[0].overlay.remove.join(", ")})` : "")}`);
   }
 
-  step(4, 5, "Observabilidade");
+  step(4, 5, "Observability");
   await scaffoldObservability(root, cfg);
-  info("obs/runs.jsonl, obs/schema.json, obs/credits.json, obs/PRE-REGISTRO.md");
+  info("obs/runs.jsonl, obs/schema.json, obs/credits.json, obs/PRE-REGISTRATION.md");
 
-  step(5, 5, "Plano de execucao");
+  step(5, 5, "Execution plan");
   const plan = await buildPlan(manifestPath, cfg, armsByRepo, profiles);
   await writeJson(path.join(root, "plan.json"), {
     generatedAt: new Date().toISOString(),
@@ -426,23 +426,23 @@ async function main(): Promise<void> {
     totalRuns: plan.length,
     entries: plan,
   });
-  info(`${plan.length} runs em ordem randomizada (seed ${cfg.seed ?? 42})`);
+  info(`${plan.length} runs in randomized order (seed ${cfg.seed ?? 42})`);
 
   const lowConf = profiles.filter((p) => p.semantic.confidence === "low");
   if (lowConf.length) {
     warn(
-      `Confianca baixa em: ${lowConf.map((p) => p.repo).join(", ")}\n` +
-        `   Revise .bench/projects/*.json antes de gastar cota — steering ruim contamina ` +
-        `A2 em diante por igual e o benchmark mede a sua descricao errada, nao a config.`,
+      `Low confidence in: ${lowConf.map((p) => p.repo).join(", ")}\n` +
+        `   Review .bench/projects/*.json before spending quota — bad steering contaminates ` +
+        `A2 onwards equally, and the benchmark then measures your wrong description, not the config.`,
     );
   }
   if (!cfg.model) {
-    warn("cfg.model nao definido. Trave um modelo antes de rodar, ou o resultado nao se sustenta.");
+    warn("cfg.model is not set. Pin a model before running, or the result does not hold.");
   }
 
   console.log("");
-  ok(`bootstrap pronto em ${root}`);
-  info(`proximo: preencha ${path.join(root, "obs/PRE-REGISTRO.md")}, depois rode`);
+  ok(`bootstrap ready at ${root}`);
+  info(`next: fill in ${path.join(root, "obs/PRE-REGISTRATION.md")}, then run`);
   info(dim(`  node src/bench-run.ts --config ${configPath}`));
 }
 

@@ -25,7 +25,7 @@ import { readArgs } from "./lib/args.ts";
 import { readJson, writeJson, writeText } from "./lib/fsx.ts";
 import { bold, cyan, dim, fail, green, info, ok, red, rule, table, warn, yellow } from "./lib/log.ts";
 import { loadRuns } from "./lib/obs.ts";
-import { fmtMs, mean, stdev, wilson } from "./lib/stats.ts";
+import { fmtMs, mcnemar, mean, stdev, wilson } from "./lib/stats.ts";
 import type { BenchConfig, Plan, RunRecord } from "./lib/types.ts";
 
 interface CreditSnapshot {
@@ -194,6 +194,86 @@ function aggregate(runs: RunRecord[], unit: CostUnit, labels: Map<string, string
   return stats.sort((a, b) => a.arm.localeCompare(b.arm));
 }
 
+// ─────────────────────────────────────────────────── comparacao pareada
+
+interface Pareado {
+  arm: string;
+  soBaseline: number;
+  soTratamento: number;
+  ambos: number;
+  nenhum: number;
+  p: number;
+}
+
+/** Uma tarefa passa num arm se a maioria das repeticoes dela passou. */
+function passouPorTarefa(runs: RunRecord[], arm: string): Map<string, boolean> {
+  const porTarefa = new Map<string, RunRecord[]>();
+  for (const r of runs) {
+    if (r.arm !== arm) continue;
+    porTarefa.set(r.taskId, [...(porTarefa.get(r.taskId) ?? []), r]);
+  }
+  const saida = new Map<string, boolean>();
+  for (const [tarefa, lista] of porTarefa) {
+    const ok = lista.filter((r) => r.success).length;
+    saida.set(tarefa, ok * 2 > lista.length);
+  }
+  return saida;
+}
+
+/**
+ * Compara cada arm com o baseline NAS MESMAS tarefas.
+ *
+ * Duas taxas de sucesso soltas escondem que os arms rodaram o mesmo conjunto:
+ * o que separa um do outro sao as tarefas em que eles discordaram, e nada mais.
+ */
+function compararPareado(runs: RunRecord[], baselineId: string): Pareado[] {
+  const base = passouPorTarefa(runs, baselineId);
+  const arms = [...new Set(runs.map((r) => r.arm))].filter((a) => a !== baselineId).sort();
+
+  return arms.map((arm) => {
+    const trat = passouPorTarefa(runs, arm);
+    let soBaseline = 0;
+    let soTratamento = 0;
+    let ambos = 0;
+    let nenhum = 0;
+    for (const [tarefa, passouBase] of base) {
+      const passouTrat = trat.get(tarefa);
+      if (passouTrat === undefined) continue;
+      if (passouBase && passouTrat) ambos++;
+      else if (passouBase) soBaseline++;
+      else if (passouTrat) soTratamento++;
+      else nenhum++;
+    }
+    return { arm, soBaseline, soTratamento, ambos, nenhum, p: mcnemar(soBaseline, soTratamento).p };
+  });
+}
+
+/**
+ * Tarefa so discrimina se o baseline as vezes passa e as vezes falha.
+ *
+ * Se o baseline acerta sempre, nao ha o que melhorar; se erra sempre, o
+ * problema e a tarefa, nao a configuracao. Nos dois casos ela entra na conta
+ * puxando a media e nao carrega informacao nenhuma sobre qual arm e melhor.
+ */
+function triagemDeDiscriminacao(
+  runs: RunRecord[],
+  baselineId: string,
+): { tarefa: string; taxa: number; veredito: string }[] {
+  const porTarefa = new Map<string, RunRecord[]>();
+  for (const r of runs) {
+    if (r.arm !== baselineId) continue;
+    porTarefa.set(r.taskId, [...(porTarefa.get(r.taskId) ?? []), r]);
+  }
+  const saida: { tarefa: string; taxa: number; veredito: string }[] = [];
+  for (const [tarefa, lista] of porTarefa) {
+    const taxa = lista.filter((r) => r.success).length / lista.length;
+    const veredito =
+      taxa >= 0.9 ? "fácil demais" : taxa <= 0.1 ? "difícil demais" : "discrimina";
+    saida.push({ tarefa, taxa, veredito });
+  }
+  return saida.sort((a, b) => a.taxa - b.taxa);
+}
+
 // ─────────────────────────────────────────────────── validade
 
 interface Validity {
@@ -352,6 +432,74 @@ function printReport(stats: ArmStats[], unit: CostUnit, baselineId: string): voi
   );
 }
 
+function printPareado(pareados: Pareado[], baselineId: string): void {
+  rule(`comparação pareada contra ${baselineId}`);
+  table(
+    [
+      { header: "arm", width: 4 },
+      { header: `só ${baselineId}`, width: 10, align: "right" },
+      { header: "só o arm", width: 9, align: "right" },
+      { header: "os dois", width: 8, align: "right" },
+      { header: "nenhum", width: 7, align: "right" },
+      { header: "p (McNemar)", width: 12, align: "right" },
+      { header: "leitura", width: 26 },
+    ],
+    pareados.map((x) => {
+      const discordancias = x.soBaseline + x.soTratamento;
+      const leitura =
+        discordancias === 0
+          ? dim("empataram em tudo")
+          : discordancias < 6
+            ? yellow(`só ${discordancias} discordância(s)`)
+            : x.p < 0.05
+              ? x.soTratamento > x.soBaseline
+                ? green("melhor que o baseline")
+                : red("pior que o baseline")
+              : "diferença não separável";
+      return [
+        x.arm,
+        String(x.soBaseline),
+        String(x.soTratamento),
+        String(x.ambos),
+        String(x.nenhum),
+        x.p < 0.0001 ? "<0,0001" : x.p.toFixed(4),
+        leitura,
+      ];
+    }),
+  );
+  console.log(
+    dim(
+      "  Só as tarefas em que os arms discordaram carregam informação. Com menos de\n" +
+        "  seis discordâncias o teste não conclui, por mais que a média pareça diferente.",
+    ),
+  );
+}
+
+function printDiscriminacao(
+  itens: { tarefa: string; taxa: number; veredito: string }[],
+  baselineId: string,
+): void {
+  const inuteis = itens.filter((i) => i.veredito !== "discrimina");
+  if (inuteis.length === 0) return;
+
+  rule("tarefas que não discriminam");
+  table(
+    [
+      { header: "tarefa", width: 30 },
+      { header: `${baselineId} passa`, width: 12, align: "right" },
+      { header: "veredito", width: 16 },
+    ],
+    inuteis.map((i) => [i.tarefa.slice(0, 30), pct(i.taxa), i.veredito]),
+  );
+  console.log(
+    dim(
+      `  ${inuteis.length} de ${itens.length} tarefa(s) não separam os arms: o baseline acerta\n` +
+        "  sempre ou erra sempre. Elas entram na média sem carregar informação. Troque\n" +
+        "  por tarefas em que o baseline passa entre 30% e 70% das vezes.",
+    ),
+  );
+}
+
 function printByTask(runs: RunRecord[], unit: CostUnit): void {
   rule("por tarefa");
   const tasks = [...new Set(runs.map((r) => r.taskId))].sort();
@@ -493,6 +641,13 @@ async function main(): Promise<void> {
   if (duplicates) info(dim(`${duplicates} linha(s) duplicada(s) de runId ignorada(s)`));
 
   printReport(stats, unit, baselineId);
+
+  const pareados = compararPareado(unique, baselineId);
+  if (pareados.length > 0) printPareado(pareados, baselineId);
+
+  const discriminacao = triagemDeDiscriminacao(unique, baselineId);
+  printDiscriminacao(discriminacao, baselineId);
+
   if (a.bool("--by-task")) printByTask(unique, unit);
 
   rule("validade");
@@ -519,6 +674,8 @@ async function main(): Promise<void> {
     baseline: baselineId,
     totalRuns: unique.length,
     arms: stats,
+    pareado: pareados,
+    discriminacao,
     validity,
   });
 

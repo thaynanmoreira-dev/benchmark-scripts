@@ -38,6 +38,58 @@ export function wilson(successes: number, total: number, z = 1.96): [number, num
   return [Math.max(0, (center - spread) / denom), Math.min(1, (center + spread) / denom)];
 }
 
+/**
+ * Teste de McNemar pareado, com correcao de continuidade.
+ *
+ * Comparar duas taxas de sucesso soltas ignora que os dois arms rodaram AS
+ * MESMAS tarefas. O que interessa nao e quantos cada um acertou, e sim em
+ * quantas tarefas eles discordaram e para que lado: `b` = so o baseline
+ * passou, `c` = so o tratamento passou. Tarefa que os dois acertam, ou que os
+ * dois erram, nao carrega informacao sobre a diferenca entre eles.
+ *
+ * Devolve o p-valor bilateral aproximado pela qui-quadrado com 1 grau de
+ * liberdade. Com b + c pequeno a aproximacao e grosseira, e o chamador avisa.
+ */
+export function mcnemar(b: number, c: number): { estatistica: number; p: number; n: number } {
+  const n = b + c;
+  if (n === 0) return { estatistica: 0, p: 1, n: 0 };
+  const estatistica = (Math.abs(b - c) - 1) ** 2 / n;
+  return { estatistica, p: qui2SobrevivenciaGl1(estatistica), n };
+}
+
+/**
+ * Cauda superior da qui-quadrado com 1 grau de liberdade.
+ * Para gl = 1 vale P(X > x) = erfc(sqrt(x / 2)), entao basta uma erfc.
+ */
+function qui2SobrevivenciaGl1(x: number): number {
+  if (x <= 0) return 1;
+  return erfc(Math.sqrt(x / 2));
+}
+
+/** erfc por aproximacao de Numerical Recipes: erro relativo abaixo de 1.2e-7. */
+function erfc(x: number): number {
+  const z = Math.abs(x);
+  const t = 1 / (1 + z / 2);
+  const soma =
+    -z * z -
+    1.26551223 +
+    t *
+      (1.00002368 +
+        t *
+          (0.37409196 +
+            t *
+              (0.09678418 +
+                t *
+                  (-0.18628806 +
+                    t *
+                      (0.27886807 +
+                        t *
+                          (-1.13520398 +
+                            t * (1.48851587 + t * (-0.82215223 + t * 0.17087277))))))));
+  const r = t * Math.exp(soma);
+  return x >= 0 ? r : 2 - r;
+}
+
 /** PRNG deterministico. Mesma seed, mesma ordem de runs. */
 export function mulberry32(seed: number): () => number {
   let a = seed >>> 0;

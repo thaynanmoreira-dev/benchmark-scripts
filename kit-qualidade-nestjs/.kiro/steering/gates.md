@@ -3,7 +3,11 @@ inclusion: always
 ---
 # Definição de pronto
 
-A tarefa está pronta quando **este comando sai com zero**, e não antes:
+A tarefa **começa** quando `npm run contrato` sai com zero, e não antes: enquanto
+houver fato sem fonte, suposição bloqueante sem resposta ou pergunta em aberto,
+não escreva código de produção. Use `/contrato` para preencher comigo.
+
+A tarefa está **pronta** quando este comando sai com zero, e não antes:
 
 ```bash
 npm run gates:rapidos   # segundos — rode a cada mudança
@@ -20,6 +24,7 @@ dá o veredito.
 
 | Limite | Comando |
 |---|---|
+| Contrato da tarefa completo | `npm run contrato` |
 | Formatação canônica | `npm run format:check` (`npm run format` corrige) |
 | Complexidade ciclomática < 22 | `npm run lint` |
 | Complexidade cognitiva < 22 | `npm run lint` |

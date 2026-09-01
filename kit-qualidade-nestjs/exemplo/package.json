@@ -7,6 +7,7 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
+    "contrato": "node tools/contrato.mjs",
     "typecoverage": "type-coverage --strict --at-least 100 --ignore-files \"src/**/*.spec.ts\"",
     "lint": "eslint src/",
     "arch": "depcruise src --config .dependency-cruiser.cjs",

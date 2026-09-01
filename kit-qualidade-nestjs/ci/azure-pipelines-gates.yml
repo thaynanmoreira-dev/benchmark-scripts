@@ -37,6 +37,12 @@ stages:
 
           # Cada gate é um passo próprio para o Azure DevOps mostrar qual
           # reprovou sem ninguém precisar abrir o log inteiro.
+          # Primeiro de todos: é o único gate que pega requisito faltando.
+          # Os outros olham o código, e código errado pelo motivo certo passa
+          # em todos eles.
+          - script: npm run contrato
+            displayName: 'Contrato da tarefa: nenhuma pergunta em aberto'
+
           - script: npm run format:check
             displayName: 'Formatação canônica'
           - script: npm run typecheck

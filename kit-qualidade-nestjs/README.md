@@ -35,14 +35,15 @@ O resto é agnóstico. O contexto do seu domínio entra em um arquivo só,
   estrutura.md      camadas, CQRS, direção de dependência        (arquivos .ts)
   qualidade.md      como escrever para caber na leitura de quem lê (arquivos .ts)
   grill.md          escopo negativo e non-goals                  (manual, /grill)
+  contrato.md       entrevista para separar fato de suposição    (manual, /contrato)
 .kiro/hooks/
-  gates.json        formata ao salvar, roda os gates ao encerrar,
-                    varre segredo antes do commit
+  gates.json        exige contrato antes de escrever em src/, formata ao salvar,
+                    roda os gates ao encerrar, varre segredo antes do commit
 templates/
   AGENTS.md         mesmas regras para agentes que não são o Kiro
   bin/setup         do zero até rodando, idempotente
 config/             configs das onze ferramentas
-tools/              halstead.mjs e sem-atalho.mjs
+tools/              halstead.mjs, sem-atalho.mjs e contrato.mjs
 ci/                 template de pipeline do Azure DevOps, dois estágios
 docs/
   COMO-TRABALHAR-COM-O-AGENTE.md   o laço de trabalho, e o que ficou de fora
@@ -97,6 +98,17 @@ ligado entra em todo prompt e vira custo de crédito recorrente. Se `produto.md`
 | Direção de dependência | dependency-cruiser | `.dependency-cruiser.cjs` |
 | Código morto: 0 | knip | `knip.json` |
 | Código redundante: 0 | jscpd + `sonarjs/no-identical-functions` | `.jscpd.json` |
+
+### Requisito, antes do código
+
+| Regra | Ferramenta | Config |
+|---|---|---|
+| Contrato da tarefa completo | script próprio | `tools/contrato.mjs` |
+
+É o único gate que não olha código. Todos os outros pegam código errado; este
+pega **código certo pelo motivo errado** — o agente preenchendo lacuna do
+requisito com palpite e escrevendo o teste que confirma o próprio palpite. Ver
+[o laço de trabalho](docs/COMO-TRABALHAR-COM-O-AGENTE.md#o-gate-que-falta-em-todo-lugar).
 
 ### Segurança e integridade dos gates
 

@@ -210,6 +210,25 @@ dela. Isso só faz sentido com execução em série — em paralelo o número vi
 
 ## Validade
 
+### Comparação pareada, não médias soltas
+
+Os arms rodam **as mesmas tarefas**, então comparar duas taxas de sucesso soltas
+joga fora essa informação. O relatório traz um teste de McNemar por arm contra o
+baseline: o que separa dois arms são apenas as tarefas em que eles **discordaram**
+— tarefa que os dois acertam, ou que os dois erram, não diz nada sobre qual é
+melhor. Com menos de seis discordâncias o teste não conclui, por mais que a média
+pareça diferente.
+
+### Triagem de tarefa que não discrimina
+
+Tarefa em que o baseline acerta sempre não tem o que melhorar; tarefa em que ele
+erra sempre tem problema de enunciado, não de configuração. Nos dois casos ela
+entra na média puxando o número sem carregar informação. O relatório lista essas
+tarefas e sugere trocá-las por outras em que o baseline passe entre 30% e 70% das
+vezes — a faixa em que a diferença entre arms tem como aparecer.
+
+### Checagens de validade
+
 O `bench-report` roda as checagens que decidem se o benchmark concluiu alguma coisa:
 
 - **inválido** se o modelo trocou no meio, ou se o desvio dentro da mesma célula
@@ -226,6 +245,20 @@ agente inventa quando o pedido deixa espaço. Veja `examples/tasks.isca-de-escop
 e anexe com `--extra-tasks`.
 
 ---
+
+## Ferramenta parecida
+
+O [Lift for Kiro](https://github.com/kirodotdev-labs/kiro-lift) resolve o mesmo
+problema para o Kiro: A/B de augmentations com estratificação, painel de juízes,
+intervalos de Wilson e McNemar pareado. Foi de lá que vieram a comparação pareada
+e a triagem de discriminação acima.
+
+A diferença que importa na escolha: lá o veredito de cada tarefa sai de um painel
+de LLMs juízes; aqui sai dos **testes da PR original**, que são determinísticos e
+não têm preferência. Em troca, escrever tarefa nova é mais barato lá — aqui a
+tarefa precisa existir como PR mergeada com teste. Se você quer medir conhecimento
+(um MCP de documentação, por exemplo) em vez de execução de tarefa, o Lift é a
+ferramenta mais direta.
 
 ## Limitações conhecidas
 

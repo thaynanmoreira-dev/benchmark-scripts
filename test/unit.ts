@@ -16,7 +16,7 @@ import { DEFAULT_EXCLUDES, globToRegExp, isTestFile, matchesAny } from "../src/l
 import { github } from "../src/lib/providers/github.ts";
 import { parseMergeSubject } from "../src/lib/providers/local-git.ts";
 import { bareRepo } from "../src/lib/git.ts";
-import { mulberry32, percentile, shuffle, stdev, wilson } from "../src/lib/stats.ts";
+import { mcnemar, mulberry32, percentile, shuffle, stdev, wilson } from "../src/lib/stats.ts";
 
 test("glob cobre duplo asterisco, asterisco e extensao", () => {
   assert.ok(globToRegExp("**/dist/**").test("pacotes/a/dist/index.js"));
@@ -258,6 +258,38 @@ test("percentil interpola e Wilson nao colapsa com n pequeno", () => {
   const [lo, hi] = wilson(0, 3);
   assert.equal(lo, 0);
   assert.ok(hi > 0.5, "com 0 de 3 o teto ainda precisa ser alto");
+});
+
+test("McNemar so olha as discordancias, nao o total de acertos", () => {
+  // Dez tarefas em que so o baseline passou contra duas em que so o tratamento
+  // passou: o valor bate com a tabela classica do teste com correcao de
+  // continuidade, (|10-2|-1)^2 / 12 = 4.083, p = 0.043.
+  const r = mcnemar(10, 2);
+  assert.ok(Math.abs(r.estatistica - 4.0833) < 0.001);
+  assert.ok(Math.abs(r.p - 0.0433) < 0.001);
+  assert.equal(r.n, 12);
+
+  // Tarefa que os dois arms acertam, ou que os dois erram, nao entra na conta:
+  // o que separa os arms sao so as discordancias.
+  assert.deepEqual(mcnemar(10, 2), mcnemar(10, 2));
+});
+
+test("McNemar sem discordancia nao conclui nada", () => {
+  const r = mcnemar(0, 0);
+  assert.equal(r.p, 1);
+  assert.equal(r.n, 0);
+});
+
+test("McNemar e simetrico: a direcao vem dos contadores, nao do p", () => {
+  assert.ok(Math.abs(mcnemar(2, 10).p - mcnemar(10, 2).p) < 1e-12);
+});
+
+test("McNemar cresce com a assimetria", () => {
+  const fraco = mcnemar(6, 4);
+  const forte = mcnemar(25, 5);
+  assert.ok(forte.p < fraco.p, "discordancia mais assimetrica precisa dar p menor");
+  assert.ok(forte.p < 0.01);
+  assert.ok(fraco.p > 0.5);
 });
 
 test("desvio amostral e zero com menos de dois pontos", () => {

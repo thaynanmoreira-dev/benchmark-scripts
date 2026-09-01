@@ -1,0 +1,26 @@
+{
+  "provider": "azure-devops",
+  "org": "minha-org",
+  "project": "meu-projeto",
+  "repos": [
+    { "name": "servico-exemplo", "defaultBranch": "main" },
+    { "name": "outro-servico", "defaultBranch": "main" },
+    { "name": "terceiro-servico", "defaultBranch": "main" }
+  ],
+  "root": ".bench",
+  "model": "TRAVE UM MODELO AQUI",
+  "reps": 3,
+  "seed": 42,
+  "baselineStripsExistingConfig": true,
+  "maxGateRetries": 2,
+  "install": { "enabled": true, "timeoutMs": 900000 },
+  "gateTimeoutMs": 600000,
+  "agent": {
+    "cmd": "kiro-cli",
+    "args": ["chat", "--no-interactive", "--trust-tools=read,grep,write,execute"],
+    "promptMode": "stdin",
+    "modeArgs": { "vibe": [], "spec": ["--spec"] },
+    "modelFlag": "--model",
+    "timeoutMs": 900000
+  }
+}

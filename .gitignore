@@ -1,0 +1,13 @@
+node_modules/
+.bench/
+.pr-cache*.json
+manifest.json
+repos/
+*.log
+.DS_Store
+
+# o exemplo do kit instala as proprias dependencias
+kit-qualidade-nestjs/exemplo/node_modules/
+kit-qualidade-nestjs/exemplo/coverage/
+kit-qualidade-nestjs/exemplo/reports/
+kit-qualidade-nestjs/exemplo/.stryker-tmp/

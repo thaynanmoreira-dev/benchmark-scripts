@@ -1,0 +1,24 @@
+{
+  "name": "kiro-config-benchmark",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Benchmark de configurações do Kiro (steering / tools / modo) medindo créditos por tarefa aprovada, a partir de PRs já mergeadas de qualquer repositório.",
+  "engines": {
+    "node": ">=22.6"
+  },
+  "scripts": {
+    "select": "node src/select-prs.ts",
+    "init": "node src/bench-init.ts",
+    "run": "node src/bench-run.ts",
+    "report": "node src/bench-report.ts",
+    "typecheck": "tsc --noEmit --noUnusedLocals --noUnusedParameters",
+    "test": "node --test test/unit.ts && node test/smoke.ts",
+    "test:unit": "node --test test/unit.ts",
+    "test:smoke": "node test/smoke.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "@types/node": "^22.15.3"
+  }
+}

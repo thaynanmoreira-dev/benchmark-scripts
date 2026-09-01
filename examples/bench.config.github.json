@@ -1,0 +1,19 @@
+{
+  "provider": "github",
+  "org": "minha-org",
+  "repos": [
+    { "name": "servico-exemplo", "defaultBranch": "main" },
+    { "name": "web-app", "remoteUrl": "https://github.com/minha-org/web-app.git" }
+  ],
+  "root": ".bench",
+  "model": "TRAVE UM MODELO AQUI",
+  "reps": 3,
+  "seed": 42,
+  "agent": {
+    "cmd": "kiro-cli",
+    "args": ["chat", "--no-interactive"],
+    "promptMode": "stdin",
+    "modeArgs": { "vibe": [], "spec": ["--spec"] },
+    "timeoutMs": 900000
+  }
+}

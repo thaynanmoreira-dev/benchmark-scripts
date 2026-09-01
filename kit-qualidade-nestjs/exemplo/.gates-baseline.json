@@ -1,0 +1,7 @@
+{
+  "cast-unknown": 1,
+  "jest-coverage-exclude": 4,
+  "jscpd-ignore-list": 3,
+  "stryker-mutate-exclude": 3,
+  "eslint-regra-desligada": 3
+}

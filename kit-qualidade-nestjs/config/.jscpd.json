@@ -1,0 +1,10 @@
+{
+  "threshold": 0,
+  "reporters": ["consoleFull"],
+  "absolute": true,
+  "gitignore": true,
+  "minTokens": 50,
+  "minLines": 5,
+  "ignore": ["**/*.spec.ts", "**/*.module.ts", "**/node_modules/**"],
+  "format": ["typescript"]
+}

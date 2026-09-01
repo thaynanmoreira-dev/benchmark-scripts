@@ -1,0 +1,12 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": ["src/main.ts", "src/**/*.spec.ts"],
+  "project": ["src/**/*.ts"],
+  "rules": {
+    "files": "error",
+    "exports": "error",
+    "types": "error",
+    "duplicates": "error",
+    "unlisted": "error"
+  }
+}

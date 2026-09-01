@@ -30,16 +30,31 @@ O resto é agnóstico. O contexto do seu domínio entra em um arquivo só,
 
 ```
 .kiro/steering/     as regras que o Kiro carrega
-  produto.md        contexto do negócio e da stack        (sempre)
-  gates.md          definição de pronto e os limites      (sempre)
-  estrutura.md      camadas, CQRS, direção de dependência (arquivos .ts)
-  qualidade.md      comportamento para ficar sob os limites (arquivos .ts)
-  grill.md          escopo negativo e non-goals           (manual, /grill)
-config/             configs das ferramentas
+  produto.md        contexto do domínio — TEMPLATE para preencher (sempre)
+  gates.md          definição de pronto e os limites             (sempre)
+  estrutura.md      camadas, CQRS, direção de dependência        (arquivos .ts)
+  qualidade.md      como escrever para caber na leitura de quem lê (arquivos .ts)
+  grill.md          escopo negativo e non-goals                  (manual, /grill)
+.kiro/hooks/
+  gates.json        formata ao salvar, roda os gates ao encerrar,
+                    varre segredo antes do commit
+templates/
+  AGENTS.md         mesmas regras para agentes que não são o Kiro
+  bin/setup         do zero até rodando, idempotente
+config/             configs das onze ferramentas
 tools/              halstead.mjs e sem-atalho.mjs
-ci/                 template de pipeline do Azure DevOps
+ci/                 template de pipeline do Azure DevOps, dois estágios
+docs/
+  COMO-TRABALHAR-COM-O-AGENTE.md   o laço de trabalho, e o que ficou de fora
 exemplo/            serviço NestJS com tudo ligado, verde de ponta a ponta
 ```
+
+Os hooks tornam a definição de pronto automática: o `Stop` dispara
+`npm run gates:rapidos` quando o agente acha que terminou, então "esqueci de
+rodar" deixa de ser uma possibilidade. **Não consegui testar os hooks aqui** — não
+tenho Kiro neste ambiente. O formato segue a
+[documentação oficial](https://kiro.dev/docs/hooks/); confira contra a sua versão
+antes de confiar. Os comandos que eles chamam, esses sim, estão verificados.
 
 Dois arquivos são carregados em **toda** interação (`inclusion: always`), e os
 outros dois só quando um `.ts` está em jogo. Isso é deliberado: steering sempre
@@ -48,20 +63,47 @@ ligado entra em todo prompt e vira custo de crédito recorrente. Se `produto.md`
 
 ## Regra → ferramenta
 
+### Limites de complexidade e teste
+
 | Regra | Ferramenta | Config |
 |---|---|---|
 | Ciclomática < 22 | ESLint `complexity` | `eslint.config.mjs` |
 | Cognitiva < 22 | `eslint-plugin-sonarjs` | `eslint.config.mjs` |
+| Função de 4 a 20 linhas, até 2 níveis | `max-lines-per-function`, `max-depth` | `eslint.config.mjs` |
 | Linhas por arquivo < 500 | ESLint `max-lines` | `eslint.config.mjs` |
-| Zero `any` | `typescript-eslint`, 6 regras | `eslint.config.mjs` |
-| Zero `unknown` e zero `as` | `no-restricted-syntax` + `consistent-type-assertions` | `eslint.config.mjs` |
-| Direção de dependência | dependency-cruiser | `.dependency-cruiser.cjs` |
 | Halstead < 80 | script próprio | `tools/halstead.mjs` |
 | Cobertura 100% | Jest `coverageThreshold` | `jest.config.mjs` |
 | CRAP < 25 | nenhuma — é implicado | ver abaixo |
 | Mutantes sobreviventes: 0 | Stryker `thresholds.break: 100` | `stryker.config.mjs` |
+| Suíte sem teste desligado nem sem asserção | `eslint-plugin-jest` | `eslint.config.mjs` |
+
+### Tipos
+
+| Regra | Ferramenta | Config |
+|---|---|---|
+| Zero `any` | `typescript-eslint`, 6 regras | `eslint.config.mjs` |
+| Zero `unknown` e zero `as` | `no-restricted-syntax` + `consistent-type-assertions` | `eslint.config.mjs` |
+| Tipos explícitos na fronteira | `explicit-module-boundary-types` | `eslint.config.mjs` |
+| Cobertura de tipos 100% | type-coverage | script `typecoverage` |
+
+### Forma do código para quem lê por busca
+
+| Regra | Ferramenta | Config |
+|---|---|---|
+| Formatação canônica | Prettier | `.prettierrc.json` |
+| Nomes greppáveis | ESLint `id-denylist` | `eslint.config.mjs` |
+| Arquivo e pasta com nome previsível | ls-lint | `.ls-lint.yml` |
+| Erro sempre com mensagem | `no-restricted-syntax` | `eslint.config.mjs` |
+| Direção de dependência | dependency-cruiser | `.dependency-cruiser.cjs` |
 | Código morto: 0 | knip | `knip.json` |
 | Código redundante: 0 | jscpd + `sonarjs/no-identical-functions` | `.jscpd.json` |
+
+### Segurança e integridade dos gates
+
+| Regra | Ferramenta | Config |
+|---|---|---|
+| Nenhum segredo no repositório | secretlint | `.secretlintrc.json` |
+| Dependência com vulnerabilidade conhecida | `npm audit` | script `vulns`, só no CI |
 | Nenhum gate desligado | script próprio | `tools/sem-atalho.mjs` |
 
 A direção de dependência **não estava na lista original**. Entrou porque o
@@ -69,7 +111,37 @@ contexto pede Clean Architecture, e arquitetura é exatamente o tipo de regra qu
 steering não segura: um import errado compila, passa no lint e só aparece meses
 depois, quando trocar o banco exige mexer no domínio.
 
-## Oito coisas que só apareceram testando
+## Por que o código tem esta forma
+
+Metade dos limites acima não é sobre humano. Quem lê este código a maior parte do
+tempo é um agente, e ele lê sob restrições concretas: puxa o arquivo em pedaços,
+navega por `grep` em vez de abrir tudo, perde precisão bem antes do limite
+anunciado da janela, e paga token em cada chamada. Isso re-ordena as prioridades
+de código limpo, sem inventar nenhuma nova:
+
+| Restrição de quem lê | O que vira gate |
+|---|---|
+| Lê em pedaços, não de cima a baixo | função de 4 a 20 linhas, arquivo < 500 |
+| Aninhamento multiplica custo de atenção | no máximo 2 níveis de indentação |
+| Navega por busca | nomes greppáveis, arquivo com nome previsível |
+| Assinatura é o gabarito | tipos explícitos, cobertura de tipos 100% |
+| Atualiza uma cópia e esquece a outra | zero duplicação |
+| Precisa validar o que escreveu | comando de teste headless, `bin/setup` idempotente |
+| Formatação inconsistente custa token | formatador decide, ninguém discute |
+
+Duas consequências vão contra o que se ensinava:
+
+**Comentário virou contexto de primeira classe.** O agente lê e usa comentário
+para entender o porquê. Isso inverte o conselho de apagar comentário em
+refatoração: o steering manda explicitamente **não apagar comentário existente**,
+inclusive os que o próprio agente escreveu — ele os deixou porque vai precisar
+daquilo depois. O que continua proibido é comentário que narra o óbvio.
+
+**Mensagem de erro é ferramenta de depuração, não texto de UI.** Stack trace vago
+custa uma rodada inteira de investigação toda vez que o erro estoura, e essa
+rodada é paga em token. Por isso `new Error()` sem mensagem reprova no lint.
+
+## Nove coisas que só apareceram testando
 
 **1. O limiar do ESLint é exclusivo.** A regra dispara quando **passa** do máximo,
 então para "< 22" a config diz `21`. Verificado na fronteira: 21 ramos passa, 22
@@ -123,7 +195,15 @@ armadilha correspondente abaixo — o sintoma só aparece numa instalação do z
 não numa que foi crescendo aos poucos, então é o tipo de coisa que quebra no CI
 depois de passar na máquina de quem escreveu.
 
-**8. Dublê de teste é a única exceção, e ela é deliberada.** `QueryBus.execute` do
+**8. Cobertura de tipos é uma segunda linha que supressão de lint não silencia.**
+Plantei um `JSON.parse` sem tipagem com `/* eslint-disable */` em cima: o lint
+calou, o `tsc` passou, e o `type-coverage` reprovou assim mesmo, apontando os três
+identificadores contaminados. Ele também achou um vazamento real que o lint
+deixava passar — `NestFactory.create` devolve `INestApplication<any>`, e esse
+`any` do framework entrava no nosso código. O conserto foi nomear o servidor de
+verdade (`INestApplication<Server>`), não silenciar nada.
+
+**9. Dublê de teste é a única exceção, e ela é deliberada.** `QueryBus.execute` do
 NestJS tem quatro sobrecargas; casar a assinatura à mão para evitar o cast exigiria
 criar uma porta de domínio cujo único propósito é agradar o linter — o linter
 mandando na arquitetura. Por isso as regras de `unknown` e `as` estão desligadas em
@@ -188,8 +268,26 @@ desliga tudo na primeira semana. A ordem que sobrevive:
 6. Mutação por último, e só depois de a cobertura estar honesta em 100%. Mutação em
    suíte fraca produz centenas de sobreviventes e nenhuma ação clara.
 
+## Como trabalhar com o agente, e o que ficou de fora
+
+O kit não traz framework de desenvolvimento com IA, e isso é escolha. Orquestração
+multi-agente, grafo de workflow para tarefa linear e especificação como fonte da
+verdade ficaram de fora por motivos que estão explicados em
+[`docs/COMO-TRABALHAR-COM-O-AGENTE.md`](docs/COMO-TRABALHAR-COM-O-AGENTE.md),
+junto com o laço que o kit assume no lugar deles e a posição sobre o modo spec do
+Kiro.
+
+Resumo: a fonte da verdade aqui é o teste, porque ele é executável e o gate de
+mutação garante que ele afirma alguma coisa. Documento não tem como não apodrecer.
+
 ## Custo de execução
 
-`gates:rapidos` roda em segundos e serve para cada save. `mutation` é minutos e
-cresce com a suíte: rode no PR, com `incremental: true` (já configurado), nunca no
-laço de edição. Por isso são dois scripts, e por isso o pipeline tem dois estágios.
+`gates:rapidos` reúne doze verificações e roda em segundos — serve para cada save,
+e é o que o hook `Stop` dispara. `mutation` é minutos e cresce com a suíte: rode no
+PR, com `incremental: true` (já configurado), nunca no laço de edição. Por isso são
+dois scripts, e por isso o pipeline tem dois estágios.
+
+`vulns` (`npm audit`) fica fora das duas composições de propósito: depende de rede
+e do estado do aviso público, então pode ficar vermelho sem ninguém ter mexido em
+nada. No pipeline ele roda com `continueOnError` — é informação para agir, não
+portão para travar o PR.

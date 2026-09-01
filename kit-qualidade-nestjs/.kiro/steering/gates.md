@@ -20,12 +20,21 @@ dá o veredito.
 
 | Limite | Comando |
 |---|---|
+| Formatação canônica | `npm run format:check` (`npm run format` corrige) |
 | Complexidade ciclomática < 22 | `npm run lint` |
 | Complexidade cognitiva < 22 | `npm run lint` |
+| Função entre 4 e 20 linhas, no máximo 2 níveis | `npm run lint` |
 | Linhas de código por arquivo < 500 | `npm run lint` |
 | Zero `any`, zero `unknown`, zero `as` | `npm run lint` |
+| Tipos explícitos na fronteira | `npm run lint` |
+| Nomes greppáveis, sem termo genérico | `npm run lint` |
+| Erro sempre com mensagem | `npm run lint` |
+| Suíte sem teste desligado nem sem asserção | `npm run lint` |
+| Cobertura de tipos 100% | `npm run typecoverage` |
 | Direção de dependência entre camadas | `npm run arch` |
+| Nome de arquivo e pasta previsível | `npm run estrutura` |
 | Dificuldade de Halstead < 80 | `npm run halstead` |
+| Nenhum segredo no repositório | `npm run segredos` |
 | Cobertura de testes 100% | `npm test` |
 | CRAP < 25 | consequência dos dois acima¹ |
 | Mutantes sobreviventes: 0 | `npm run mutation` |
@@ -42,11 +51,13 @@ Nunca introduza, em código de produção nem em teste:
 
 `eslint-disable` · `@ts-ignore` · `@ts-expect-error` · `@ts-nocheck` ·
 `istanbul ignore` · `c8 ignore` · `Stryker disable` · `jscpd:ignore` ·
+`prettier-ignore` · `type-coverage:ignore` · `secretlint-disable` ·
 `as any` · `as unknown` · qualquer asserção `as` · `it.skip` · `test.todo` ·
 `xit` · `xdescribe`
 
 Nem altere `jest.config.mjs`, `eslint.config.mjs`, `stryker.config.mjs`,
-`knip.json`, `.jscpd.json`, `.dependency-cruiser.cjs` ou `.gates-baseline.json`.
+`knip.json`, `.jscpd.json`, `.dependency-cruiser.cjs`, `.ls-lint.yml`,
+`.prettierignore` ou `.gates-baseline.json`.
 
 `npm run sem-atalho` conta essas ocorrências e reprova qualquer aumento. Contornar
 não deixa o build verde — só troca qual gate fica vermelho.

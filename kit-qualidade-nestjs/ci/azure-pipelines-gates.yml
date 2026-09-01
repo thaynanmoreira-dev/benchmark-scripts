@@ -37,14 +37,22 @@ stages:
 
           # Cada gate é um passo próprio para o Azure DevOps mostrar qual
           # reprovou sem ninguém precisar abrir o log inteiro.
+          - script: npm run format:check
+            displayName: 'Formatação canônica'
           - script: npm run typecheck
             displayName: Typecheck
+          - script: npm run typecoverage
+            displayName: 'Cobertura de tipos 100%'
           - script: npm run lint
-            displayName: 'Lint: complexidade, tamanho, any/unknown, duplicação'
+            displayName: 'Lint: complexidade, tamanho, tipos, nomes, testes'
           - script: npm run arch
             displayName: 'Arquitetura: direção de dependência'
+          - script: npm run estrutura
+            displayName: 'Estrutura: nomes de arquivo e pasta'
           - script: npm run halstead
             displayName: 'Halstead: dificuldade por função'
+          - script: npm run segredos
+            displayName: 'Segredos no repositório'
           - script: npm run sem-atalho
             displayName: 'Sem atalho: nenhum gate desligado'
           - script: npm run deadcode
@@ -53,6 +61,13 @@ stages:
             displayName: 'Código redundante'
           - script: npm test
             displayName: 'Testes e cobertura 100%'
+
+          # Fora do laço local de propósito: depende de rede e do estado do
+          # aviso público, então pode ficar vermelho sem ninguém ter mexido em
+          # nada. Aqui é informação para agir, não portão para travar o PR.
+          - script: npm run vulns
+            displayName: 'Vulnerabilidades conhecidas nas dependências'
+            continueOnError: true
 
           - task: PublishCodeCoverageResults@2
             displayName: Publicar cobertura

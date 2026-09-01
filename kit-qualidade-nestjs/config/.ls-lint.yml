@@ -1,0 +1,18 @@
+# Estrutura e nomes previsiveis. O agente navega por grep e por caminho: se a
+# convencao muda de pasta para pasta, ele gasta chamada de `find` antes de cada
+# leitura, e erra o caminho quando chuta.
+#
+# A regex aceita a convencao do Nest — segmentos minusculos separados por ponto,
+# como `pedido.service` ou `calcular-total.handler` — e recusa qualquer outra
+# coisa: PascalCase, camelCase, underscore, espaco.
+ls:
+  src:
+    .dir: kebab-case
+    .ts: regex:^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$
+
+ignore:
+  - node_modules
+  - coverage
+  - reports
+  - dist
+  - .stryker-tmp

@@ -1,0 +1,31 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "formatar-ao-salvar",
+      "description": "Formatador decide o estilo. Nenhuma discussão de formatação chega ao diff.",
+      "trigger": "PostFileSave",
+      "matcher": "\\.ts$",
+      "action": { "type": "command", "command": "npx prettier --write \"$KIRO_FILE\"" },
+      "timeout": 30,
+      "enabled": true
+    },
+    {
+      "name": "gates-antes-de-encerrar",
+      "description": "A tarefa só termina com os gates rápidos verdes. Isto torna a definição de pronto automática em vez de depender do agente lembrar.",
+      "trigger": "Stop",
+      "action": { "type": "command", "command": "npm run gates:rapidos" },
+      "timeout": 600,
+      "enabled": true
+    },
+    {
+      "name": "segredo-antes-de-commitar",
+      "description": "Vazamento de credencial é o risco mais concreto de trabalhar com agente que tem acesso ao shell.",
+      "trigger": "PreToolUse",
+      "matcher": "git commit",
+      "action": { "type": "command", "command": "npm run segredos" },
+      "timeout": 120,
+      "enabled": true
+    }
+  ]
+}

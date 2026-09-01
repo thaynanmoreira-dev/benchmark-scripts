@@ -36,6 +36,9 @@ const PADROES = [
   { id: 'cast-any', re: /\bas\s+any\b/g, gate: 'proibicao de any' },
   { id: 'cast-unknown', re: /\bas\s+unknown\b/g, gate: 'proibicao de unknown' },
   { id: 'skip-teste', re: /\b(it|test|describe)\.(skip|todo)\b|\bx(it|describe)\(/g, gate: 'testes' },
+  { id: 'prettier-ignore', re: /prettier-ignore/g, gate: 'formatacao' },
+  { id: 'type-coverage-ignore', re: /type-coverage:ignore/g, gate: 'cobertura de tipos' },
+  { id: 'secretlint-disable', re: /secretlint-disable/g, gate: 'varredura de segredo' },
 ];
 
 /** Listas de exclusao nos arquivos de config: alargar a lista tambem e atalho. */
@@ -44,6 +47,9 @@ const EXCLUSOES = [
   { id: 'jscpd-ignore-list', arquivo: '.jscpd.json', re: /"[^"]*\*[^"]*"/g },
   { id: 'stryker-mutate-exclude', arquivo: 'stryker.config.mjs', re: /'!\S+'/g },
   { id: 'eslint-regra-desligada', arquivo: 'eslint.config.mjs', re: /:\s*'off'/g },
+  { id: 'ls-lint-ignore', arquivo: '.ls-lint.yml', re: /^\s+- \S+/gm },
+  { id: 'prettier-ignore-list', arquivo: '.prettierignore', re: /^[^#\n].+$/gm },
+  { id: 'type-coverage-ignore-files', arquivo: 'package.json', re: /--ignore-files/g },
 ];
 
 const contagem = {};

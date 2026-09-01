@@ -8,16 +8,54 @@ Os números estão nas ferramentas. O que segue é o comportamento que mantém o
 código abaixo deles — porque "deixe a ciclomática < 22" não é calculável enquanto
 se escreve, mas "extraia a condição para uma função com nome" é.
 
-## Complexidade
+## Unidades pequenas
 
-- Valide na entrada e retorne cedo. Aninhamento é o que estoura a complexidade
-  cognitiva, que pune profundidade muito mais do que quantidade.
+Você lê arquivo em pedaços e navega por busca, não de cima a baixo. Unidade que
+não cabe numa leitura vira modelo mental fragmentado, e aninhamento profundo
+multiplica o custo de atenção. Daí os limites:
+
+- Função entre 4 e 20 linhas. Passou disso, extraia — não comprima.
+- No máximo dois níveis de indentação. Valide na entrada e retorne cedo.
 - `switch` ou `else if` com mais de quatro ramos vira `Record<Chave, Handler>` e
   uma busca: soma um ponto de complexidade em vez de um por ramo.
 - Condição booleana com três ou mais operandos vira função com nome
   (`ehElegivelParaDesconto(pedido)`).
 - Um método faz uma coisa. Se precisa de comentário para separar as fases, são
   dois métodos.
+
+## Nomes que sobrevivem ao grep
+
+Busca é como você navega. Nome genérico devolve resultado irrelevante e custa uma
+leitura a mais em cada volta.
+
+- Regra prática: se você procura o nome e vem coisa que não interessa, o nome
+  está errado. `total` não; `totalLiquidoCentavos` sim.
+- Proibidos como identificador: `data`, `info`, `obj`, `res`, `val`, `tmp`,
+  `temp`, `foo`, `bar`, `stuff`, `thing`, `util`, `utils`, `helper`, `manager`.
+- Nome de arquivo em minúsculas com segmentos separados por ponto ou hífen
+  (`calcular-total.handler.ts`). Estrutura previsível dispensa `find`.
+
+## Comentários
+
+Isto é o oposto do que se ensinava: comentário é contexto de primeira classe
+para quem lê o código depois, inclusive você numa sessão futura.
+
+- **Nunca apague comentário existente ao refatorar**, seu ou de outro. Ele está
+  lá porque alguém precisou daquela informação.
+- Documente o **porquê**, nunca o quê. `// incrementa i` é ruído que custa token.
+- O que vale registrar: bug de produção que motivou a lógica estranha, restrição
+  de negócio, contorno de biblioteca, número do card, referência de commit.
+- Assinatura pública ganha docstring com intenção e um exemplo de uso.
+
+## Erros com contexto
+
+Stack trace é o seu sinal de depuração. Mensagem vaga custa uma rodada inteira de
+investigação a cada vez que o erro estoura.
+
+- Nunca `new Error()` sem mensagem — o lint reprova.
+- Diga o que recebeu e o que esperava: `throw new RangeError(\`percentual fora do
+  intervalo: recebi ${percentual}, esperava 0 a 100\`)`.
+- Log estruturado em JSON com campos nomeados, nunca prosa concatenada.
 
 ## Cobertura 100% e mutação zero
 

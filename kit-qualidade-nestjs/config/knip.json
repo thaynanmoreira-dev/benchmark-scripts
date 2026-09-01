@@ -2,6 +2,9 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": ["src/main.ts", "src/**/*.spec.ts"],
   "project": ["src/**/*.ts"],
+  "ignoreDependencies": [
+    "@secretlint/secretlint-rule-preset-recommend"
+  ],
   "rules": {
     "files": "error",
     "exports": "error",

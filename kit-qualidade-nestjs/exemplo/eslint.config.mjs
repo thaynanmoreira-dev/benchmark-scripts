@@ -1,5 +1,7 @@
 import tseslint from 'typescript-eslint';
 import sonarjs from 'eslint-plugin-sonarjs';
+import jest from 'eslint-plugin-jest';
+import prettier from 'eslint-config-prettier';
 
 export default tseslint.config(
   { ignores: ['dist/**', 'coverage/**', 'reports/**', 'node_modules/**'] },
@@ -30,12 +32,42 @@ export default tseslint.config(
       'no-restricted-syntax': [
         'error',
         { selector: 'TSUnknownKeyword', message: 'unknown proibido: valide na fronteira e tipe o resultado.' },
+        {
+          // Stack trace e sinal de depuracao para o agente. Erro sem mensagem
+          // obriga uma rodada extra de investigacao a cada vez que estoura.
+          selector: 'NewExpression[callee.name=/Error$/][arguments.length=0]',
+          message: 'Erro sem mensagem: diga o que recebeu e o que esperava.',
+        },
       ],
 
       // Proibir `unknown` sem proibir `as` nao aumenta seguranca nenhuma: so
       // troca uma marcacao honesta de "nao sei o tipo" por uma afirmacao falsa
       // de que sabe. As duas proibicoes andam juntas ou nenhuma vale.
       '@typescript-eslint/consistent-type-assertions': ['error', { assertionStyle: 'never' }],
+
+      // ── unidades pequenas o bastante para caber numa leitura do agente
+      //
+      // Agente le arquivo em pedaco e navega por grep. Funcao que nao cabe numa
+      // leitura vira modelo mental fragmentado, e aninhamento profundo multiplica
+      // o custo de atencao. Os numeros vem de pratica documentada, nao de gosto.
+      'max-lines-per-function': ['error', { max: 20, skipBlankLines: true, skipComments: true }],
+      'max-depth': ['error', 2],
+      'max-statements': ['error', 15],
+      'max-params': ['error', 4],
+
+      // ── tipos explicitos na fronteira: a assinatura e o gabarito do agente
+      '@typescript-eslint/explicit-module-boundary-types': 'error',
+
+      // ── nomes que sobrevivem ao grep
+      //
+      // Se voce procura o nome e vem resultado irrelevante, o nome esta errado.
+      // Estes nunca carregam significado alcancavel por busca.
+      'id-denylist': [
+        'error',
+        'data', 'info', 'obj', 'res', 'val', 'tmp', 'temp',
+        'foo', 'bar', 'baz', 'stuff', 'thing',
+        'util', 'utils', 'helper', 'manager',
+      ],
 
       // ── codigo morto e redundante que o lint alcanca
       'no-unreachable': 'error',
@@ -45,6 +77,21 @@ export default tseslint.config(
       'sonarjs/no-redundant-jump': 'error',
     },
   },
+  // Qualidade da propria suite: teste desligado ou sem assercao passa no jest,
+  // engana a cobertura e nao mata mutante nenhum.
+  {
+    files: ['**/*.spec.ts', '**/*.e2e-spec.ts'],
+    plugins: { jest },
+    rules: {
+      'jest/no-disabled-tests': 'error',
+      'jest/no-focused-tests': 'error',
+      'jest/no-identical-title': 'error',
+      'jest/expect-expect': 'error',
+      'jest/valid-expect': 'error',
+      'jest/no-conditional-expect': 'error',
+    },
+  },
+
   // Testes: producao fica em zero, teste pode dublar.
   //
   // As proibicoes de `unknown` e de asserção de tipo existem para impedir que
@@ -59,6 +106,14 @@ export default tseslint.config(
       'no-restricted-syntax': 'off',
       '@typescript-eslint/consistent-type-assertions': 'off',
       'sonarjs/no-identical-functions': 'off',
+      // describe/it agrupam varios casos: o limite de linhas vale para a unidade
+      // de producao, nao para o bloco que a exercita.
+      'max-lines-per-function': 'off',
+      'max-statements': 'off',
     },
   },
+
+  // Por ultimo: desliga tudo que brigaria com o formatador. Estilo nao e
+  // assunto de lint quando existe formatador — ele decide, a gente aceita.
+  prettier,
 );

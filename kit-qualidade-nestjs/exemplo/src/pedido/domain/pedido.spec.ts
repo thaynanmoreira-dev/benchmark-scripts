@@ -8,7 +8,9 @@ describe('Pedido', () => {
   });
 
   it('recusa pedido sem item, com a mensagem certa', () => {
-    expect(() => new Pedido('p1', [])).toThrow(new RangeError('pedido precisa de ao menos um item'));
+    expect(() => new Pedido('p1', [])).toThrow(
+      new RangeError('pedido precisa de ao menos um item'),
+    );
   });
 
   it('aplica desconto', () => {

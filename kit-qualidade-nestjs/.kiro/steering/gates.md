@@ -17,6 +17,10 @@ npm run gates           # inclui mutação (minutos) — rode antes de me devolv
 Rode você mesmo. Não me devolva para eu descobrir que está vermelho: cada ida e
 volta custa crédito do time.
 
+Os gates rodam em paralelo e o relatório traz **todos** os vermelhos de uma vez,
+com a saída de cada um. Conserte tudo antes de rodar de novo — não vá corrigindo
+um por rodada.
+
 ## Os limites
 
 Nenhum destes números é para você calcular de cabeça — cada um tem um comando que
@@ -45,7 +49,8 @@ dá o veredito.
 | Mutantes sobreviventes: 0 | `npm run mutation` |
 | Código morto: 0 | `npm run deadcode` |
 | Código redundante: 0 | `npm run duplication` |
-| Nenhum gate desligado | `npm run sem-atalho` |
+| Nenhuma supressão nova | `npm run sem-atalho` |
+| Nenhum gate afrouxado ou apagado | `npm run gates-intactos` |
 
 ¹ `CRAP = complexidade² × (1 − cobertura)³ + complexidade`. Com cobertura em 100%
 o termo cúbico zera e CRAP vira a própria ciclomática, já limitada em 22.
@@ -62,7 +67,14 @@ Nunca introduza, em código de produção nem em teste:
 
 Nem altere `jest.config.mjs`, `eslint.config.mjs`, `stryker.config.mjs`,
 `knip.json`, `.jscpd.json`, `.dependency-cruiser.cjs`, `.ls-lint.yml`,
-`.prettierignore` ou `.gates-baseline.json`.
+`.prettierignore`, `.gates-baseline.json`, `tools/gates.mjs` ou
+`tools/gates-intactos.mjs`.
+
+**Apagar a regra não é saída.** `npm run gates-intactos` pergunta ao ESLint qual
+configuração está valendo de verdade e reprova se um limite sumiu ou foi
+afrouxado — desligar com `'off'`, apagar a linha e tirar o gate da lista do
+executor dão todos vermelho. Apertar um limite passa; afrouxar precisa de
+decisão registrada no PR.
 
 `npm run sem-atalho` conta essas ocorrências e reprova qualquer aumento. Contornar
 não deixa o build verde — só troca qual gate fica vermelho.

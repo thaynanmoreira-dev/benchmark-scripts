@@ -43,7 +43,12 @@ templates/
   AGENTS.md         mesmas regras para agentes que não são o Kiro
   bin/setup         do zero até rodando, idempotente
 config/             configs das onze ferramentas
-tools/              halstead.mjs, sem-atalho.mjs e contrato.mjs
+tools/
+  gates.mjs           executor paralelo, relata todos os vermelhos de uma vez
+  gates-intactos.mjs  confere se os próprios gates continuam de pé
+  contrato.mjs        gate de requisito
+  halstead.mjs        dificuldade por função
+  sem-atalho.mjs      supressões acima da linha de base
 ci/                 template de pipeline do Azure DevOps, dois estágios
 docs/
   COMO-TRABALHAR-COM-O-AGENTE.md   o laço de trabalho, e o que ficou de fora
@@ -116,7 +121,8 @@ requisito com palpite e escrevendo o teste que confirma o próprio palpite. Ver
 |---|---|---|
 | Nenhum segredo no repositório | secretlint | `.secretlintrc.json` |
 | Dependência com vulnerabilidade conhecida | `npm audit` | script `vulns`, só no CI |
-| Nenhum gate desligado | script próprio | `tools/sem-atalho.mjs` |
+| Nenhuma supressão nova | script próprio | `tools/sem-atalho.mjs` |
+| Nenhum gate afrouxado ou apagado | script próprio | `tools/gates-intactos.mjs` |
 
 A direção de dependência **não estava na lista original**. Entrou porque o
 contexto pede Clean Architecture, e arquitetura é exatamente o tipo de regra que
@@ -250,21 +256,38 @@ entra como violação.
   `decoratorMetadata` fica ligado no `.swcrc`, senão a DI do Nest para de
   funcionar.
 
-## O gate que fecha as portas dos fundos
+## Os dois gates que protegem os outros
 
-Cada um dos outros gates tem um atalho: `eslint-disable`, `istanbul ignore`,
-`Stryker disable`, `as any`, `it.skip`, ou simplesmente crescer uma lista de
-exclusão na config. Quem está com pressa acha a porta antes de achar a solução — e
-um agente sob pressão também. Sem este gate, nada acima se sustenta.
+Sem estes dois, todos os outros são sugestão.
 
-`tools/sem-atalho.mjs` conta as portas e reprova qualquer aumento sobre a linha de
-base versionada em `.gates-baseline.json`.
+**`sem-atalho`** conta supressões — `eslint-disable`, `istanbul ignore`,
+`Stryker disable`, `as any`, `it.skip`, `prettier-ignore` — e reprova qualquer
+aumento sobre a linha de base em `.gates-baseline.json`.
 
 ```bash
 node tools/sem-atalho.mjs --strict    # serviço novo: zero tolerância
 node tools/sem-atalho.mjs --gravar    # serviço existente: fixa a linha de base
 node tools/sem-atalho.mjs             # CI: reprova aumento
 ```
+
+**`gates-intactos`** fecha o buraco que o primeiro não vê: **apagar a regra**.
+Config sem a regra não tem `'off'` para contar, o lint fica verde porque não há
+mais nada checando, e o gate anti-atalho diz que está tudo bem. Foi um furo real
+do kit até esta versão — apaguei `complexity` e `max-depth` da config, escrevi
+uma função com quatro níveis de aninhamento, e tudo passou.
+
+Ele não lê o texto da config: pergunta ao ESLint qual configuração está
+**resolvida** para um arquivo de verdade, e confere contra o que o kit exige.
+Mesma ideia para cobertura, mutação, duplicação, arquitetura e para a lista de
+gates do executor.
+
+A regra é **apertar pode, afrouxar não**: baixar o limite de complexidade de 21
+para 12 passa; subir para 40, apagar a regra, tirar um gate do executor ou baixar
+a cobertura para 70% dão vermelho, cada um com a mensagem do que foi afrouxado.
+
+Limite honesto: o próprio `gates-intactos.mjs` é um arquivo, e quem editar o
+manifesto dele afrouxa tudo em silêncio. Contra isso só existe revisão do diff —
+por isso os dois arquivos estão na lista de "não altere" do steering.
 
 ## Adotando em código que já existe
 
@@ -294,8 +317,14 @@ mutação garante que ele afirma alguma coisa. Documento não tem como não apod
 
 ## Custo de execução
 
-`gates:rapidos` reúne doze verificações e roda em segundos — serve para cada save,
-e é o que o hook `Stop` dispara. `mutation` é minutos e cresce com a suíte: rode no
+`gates:rapidos` reúne catorze verificações. O executor `tools/gates.mjs` roda em
+paralelo e relata **todos** os vermelhos de uma vez, com a saída de cada um.
+Medido no exemplo: 8,4 s contra 27,0 s em série.
+
+O ganho de tempo é o menor dos dois. Encadeado com `&&`, o agente descobre um
+problema por rodada — e cada rodada é uma invocação inteira do CLI, paga em
+token. Num teste com cinco gates vermelhos ao mesmo tempo, o executor relatou os
+cinco numa rodada; com `&&` teriam sido cinco. `mutation` é minutos e cresce com a suíte: rode no
 PR, com `incremental: true` (já configurado), nunca no laço de edição. Por isso são
 dois scripts, e por isso o pipeline tem dois estágios.
 

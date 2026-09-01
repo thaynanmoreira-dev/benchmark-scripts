@@ -16,12 +16,13 @@
     "segredos": "secretlint \"**/*\"",
     "vulns": "npm audit --audit-level=high",
     "sem-atalho": "node tools/sem-atalho.mjs",
+    "gates-intactos": "node tools/gates-intactos.mjs",
     "deadcode": "knip",
     "duplication": "jscpd src --config .jscpd.json",
     "test": "jest",
     "mutation": "stryker run",
-    "gates:rapidos": "npm run format:check && npm run typecheck && npm run typecoverage && npm run lint && npm run arch && npm run estrutura && npm run halstead && npm run segredos && npm run sem-atalho && npm run deadcode && npm run duplication && npm test",
-    "gates": "npm run gates:rapidos && npm run mutation"
+    "gates:rapidos": "node tools/gates.mjs",
+    "gates": "node tools/gates.mjs --com-mutacao"
   },
   "devDependencies": {
     "@ls-lint/ls-lint": "2.3.1",

@@ -27,7 +27,7 @@
     },
     {
       "name": "gates-antes-de-encerrar",
-      "description": "A tarefa só termina com os gates rápidos verdes. Isto torna a definição de pronto automática em vez de depender do agente lembrar.",
+      "description": "A tarefa so termina com os gates verdes. O executor roda tudo em paralelo e relata todos os problemas de uma vez, entao o reparo cabe numa rodada so — encadear com && esconderia os outros e custaria uma invocacao por problema.",
       "trigger": "Stop",
       "action": {
         "type": "command",

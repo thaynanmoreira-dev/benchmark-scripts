@@ -60,7 +60,9 @@ stages:
           - script: npm run segredos
             displayName: 'Segredos no repositório'
           - script: npm run sem-atalho
-            displayName: 'Sem atalho: nenhum gate desligado'
+            displayName: 'Sem atalho: nenhuma supressão nova'
+          - script: npm run gates-intactos
+            displayName: 'Gates intactos: nenhum limite afrouxado ou apagado'
           - script: npm run deadcode
             displayName: 'Código morto'
           - script: npm run duplication

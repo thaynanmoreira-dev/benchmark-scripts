@@ -49,8 +49,9 @@ done
 
 # ── scripts de gate
 mkdir -p "$ALVO/tools"
-cp "$KIT"/tools/halstead.mjs "$KIT"/tools/sem-atalho.mjs "$KIT"/tools/contrato.mjs "$ALVO/tools/"
-echo "  criado: tools/halstead.mjs, tools/sem-atalho.mjs, tools/contrato.mjs"
+cp "$KIT"/tools/halstead.mjs "$KIT"/tools/sem-atalho.mjs "$KIT"/tools/contrato.mjs \
+   "$KIT"/tools/gates.mjs "$KIT"/tools/gates-intactos.mjs "$ALVO/tools/"
+echo "  criado: tools/{halstead,sem-atalho,contrato,gates,gates-intactos}.mjs"
 mkdir -p "$ALVO/.kiro/contratos"
 
 # ── hooks do Kiro: os gates deixam de depender de o agente lembrar
@@ -137,7 +138,8 @@ O package.json não dá para mesclar às cegas:
 
    "format", "format:check", "typecheck", "typecoverage", "lint", "arch",
    "estrutura", "halstead", "segredos", "vulns", "sem-atalho", "deadcode",
-   "contrato", "duplication", "test", "mutation", "gates:rapidos", "gates"
+   "contrato", "gates-intactos", "duplication", "test", "mutation",
+   "gates:rapidos", "gates"
 
 4) Depois: bin/setup
 
